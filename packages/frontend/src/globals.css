@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Light Theme — Nexus-inspired purple/cyan */
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 230 25% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 230 25% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 25% 12%;
+    --primary: 252 100% 64%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 10% 94%;
+    --secondary-foreground: 230 25% 20%;
+    --muted: 220 14% 95%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 240 10% 94%;
+    --accent-foreground: 230 25% 12%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 90%;
+    --input: 220 13% 90%;
+    --ring: 252 100% 64%;
+    --radius: 0.5rem;
+
+    /* Custom tokens — light */
+    --success: 172 66% 44%;
+    --warning: 38 92% 50%;
+    --info: 252 100% 64%;
+    --folder-color: 252 80% 62%;
+    --file-color: 215 16% 52%;
+    --image-color: 172 66% 44%;
+    --archive-color: 252 60% 55%;
+    --document-color: 252 100% 64%;
+    --upload-color: 172 66% 44%;
+    --download-color: 252 100% 64%;
+    --local-accent: 172 50% 94%;
+    --remote-accent: 252 50% 94%;
+  }
+
+  /* Dark Theme — Nexus deep purple */
+  .dark {
+    --background: 240 20% 7%;
+    --foreground: 220 20% 92%;
+    --card: 240 18% 10%;
+    --card-foreground: 220 20% 92%;
+    --popover: 240 18% 12%;
+    --popover-foreground: 220 20% 92%;
+    --primary: 252 100% 68%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 15% 16%;
+    --secondary-foreground: 220 20% 85%;
+    --muted: 240 15% 14%;
+    --muted-foreground: 220 15% 55%;
+    --accent: 252 40% 18%;
+    --accent-foreground: 220 20% 92%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 15% 16%;
+    --input: 240 15% 18%;
+    --ring: 252 100% 68%;
+    --radius: 0.5rem;
+
+    /* Custom tokens — dark */
+    --success: 172 66% 50%;
+    --warning: 38 92% 55%;
+    --info: 252 100% 68%;
+    --folder-color: 252 80% 72%;
+    --file-color: 220 20% 65%;
+    --image-color: 172 66% 55%;
+    --archive-color: 252 60% 60%;
+    --document-color: 252 100% 68%;
+    --upload-color: 172 66% 50%;
+    --download-color: 252 100% 68%;
+    --local-accent: 172 40% 14%;
+    --remote-accent: 252 40% 14%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    margin: 0;
+    overflow: hidden;
+  }
+}
+
+/* Selection highlight */
+::selection {
+  background: hsl(var(--primary) / 0.25);
+}
