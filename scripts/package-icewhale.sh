@@ -6,14 +6,20 @@
 #   dist/web-ftp-client-icewhale-v<version>.tar.gz    — single drop-off artifact
 #
 # The bundle contains:
-#   - web-ftp-client-v<version>.raw          (the squashfs zpkg module)
-#   - web-ftp-client-v<version>.raw.sha256
+#   - web-ftp-client.raw                     (the squashfs zpkg module, stable name)
+#   - web-ftp-client.raw.sha256
+#   - VERSION                                (plain-text version string)
 #   - mod-v2-entry.json                      (snippet for IceWhaleTech/Mod-Store PR)
 #   - SUBMISSION.md                          (cover letter for the IceWhale team)
 #   - README.md                              (end-user install / uninstall)
 #   - LICENSE                                (MIT)
 #   - icon.svg                               (square brand logo)
 #   - checksums.txt                          (SHA256 of every file)
+#
+# IMPORTANT: the .raw filename must be the unversioned "web-ftp-client.raw",
+# because `zpkg install` derives the extension name from the filename-stem and
+# looks for `extension-release.<stem>` inside the squashfs — the marker is
+# `extension-release.web-ftp-client` (stable, systemd-sysext convention).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -55,8 +61,14 @@ rm -rf "$BUNDLE_DIR" "$BUNDLE_TGZ"
 mkdir -p "$BUNDLE_DIR"
 
 # --- 2. Copy the binary artifact + its checksum ---
-cp "$RAW_SRC" "${BUNDLE_DIR}/${NAME}-v${VERSION}.raw"
-( cd "$BUNDLE_DIR" && sha256sum "${NAME}-v${VERSION}.raw" > "${NAME}-v${VERSION}.raw.sha256" )
+# NOTE: zpkg install expects filename-stem to match the extension-release marker
+# inside the squashfs. The marker is "extension-release.web-ftp-client" (stable,
+# unversioned — systemd-sysext convention). Therefore the .raw in the bundle MUST
+# be named "web-ftp-client.raw" — a versioned filename breaks `sudo zpkg install`.
+# Version information lives in VERSION and in the CasaOS manifest, not the filename.
+cp "$RAW_SRC" "${BUNDLE_DIR}/${NAME}.raw"
+echo "${VERSION}" > "${BUNDLE_DIR}/VERSION"
+( cd "$BUNDLE_DIR" && sha256sum "${NAME}.raw" > "${NAME}.raw.sha256" )
 
 # --- 3. Copy repo-level files end users / reviewers expect ---
 cp "${REPO_ROOT}/LICENSE"  "${BUNDLE_DIR}/LICENSE"
@@ -114,9 +126,16 @@ experience instead of manually creating app-data directories.
 # (tile appears under Settings → Modules once the PR is merged)
 
 # Or manually:
-sudo zpkg install /path/to/${NAME}-v${VERSION}.raw
+sudo zpkg install /path/to/${NAME}.raw
 sudo systemctl enable --now ${NAME}.service
 \`\`\`
+
+**Important:** the \`.raw\` file MUST be named \`${NAME}.raw\` when passed to
+\`zpkg install\`. The \`zpkg\` CLI derives the extension name from the
+filename-stem and looks for \`extension-release.<stem>\` inside the squashfs;
+a versioned filename like \`${NAME}-v${VERSION}.raw\` will fail with
+\"Extract filename … can't be resolved\". Version lives in the \`VERSION\`
+file alongside the \`.raw\` and in the CasaOS manifest.
 
 The service is a \`oneshot\` unit that runs the bootstrap CLI. First launch
 takes ~60 s (pnpm install + build); subsequent launches are instant.
@@ -149,8 +168,9 @@ This removes the dashboard tile, the CLI, and the systemd unit. User data in
 
 | File | Purpose |
 |------|---------|
-| \`${NAME}-v${VERSION}.raw\` | The squashfs/sysext module (the thing to install) |
-| \`${NAME}-v${VERSION}.raw.sha256\` | SHA256 of the above |
+| \`${NAME}.raw\` | The squashfs/sysext module (the thing to install) |
+| \`${NAME}.raw.sha256\` | SHA256 of the above |
+| \`VERSION\` | Plain-text version string (\`${VERSION}\`) |
 | \`mod-v2-entry.json\` | Snippet to append to \`Mod-Store/mod-v2.json\` |
 | \`SUBMISSION.md\` | This document |
 | \`README.md\` | End-user install / quickstart |
@@ -160,7 +180,7 @@ This removes the dashboard tile, the CLI, and the systemd unit. User data in
 
 ## Next steps for IceWhale
 
-1. Review the \`.raw\` (optionally: \`unsquashfs -l ${NAME}-v${VERSION}.raw\`)
+1. Review the \`.raw\` (optionally: \`unsquashfs -l ${NAME}.raw\`)
 2. Host it on a CDN of choice — or we host via GitHub Releases on
    \`${REPO_SLUG}\` (recommended; change \`repo\` → \`url\` in the entry if
    you prefer a pinned CDN URL)
@@ -182,7 +202,7 @@ Dual-pane FTP / FTPS / SFTP client for ZimaOS.
 ## Install via zpkg
 
 \`\`\`bash
-sudo zpkg install ./${NAME}-v${VERSION}.raw
+sudo zpkg install ./${NAME}.raw
 sudo systemctl enable --now ${NAME}.service
 \`\`\`
 
