@@ -11,12 +11,16 @@ format. It bundles:
 ## Install
 
 ```bash
-# 1. Copy the .raw to the ZimaOS host
-scp web-ftp-client-v0.1.0.raw root@zima-host:/tmp/
+# 1. Copy the .raw to the ZimaOS host — it MUST be named `web-ftp-client.raw`.
+#    zpkg derives the extension name from the filename-stem and looks for
+#    `extension-release.<stem>` inside the squashfs; a versioned filename like
+#    `web-ftp-client-v0.1.0.raw` will fail with
+#    "Extract filename … extension-release.web-ftp-client-v0.1.0 can't be resolved".
+scp web-ftp-client.raw root@zima-host:/tmp/
 
 # 2. Install the zpkg module
 ssh root@zima-host
-sudo zpkg install /tmp/web-ftp-client-v0.1.0.raw
+sudo zpkg install /tmp/web-ftp-client.raw
 
 # 3. Start the stack (not automatic — zpkg only mounts the overlay)
 sudo systemctl daemon-reload

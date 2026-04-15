@@ -33,7 +33,9 @@ fi
 
 VERSION="$(node -p "require('./package.json').version")"
 TARBALL="dist/web-ftp-client-v${VERSION}.tar.gz"
-RAW="dist/web-ftp-client-v${VERSION}.raw"
+# Use the unversioned filename — zpkg install requires filename-stem to match
+# the extension-release marker inside the squashfs (web-ftp-client).
+RAW="dist/web-ftp-client.raw"
 
 # --- 1. Ensure artifacts exist / are fresh ---
 if [ ! -f "$TARBALL" ] || [ ! -f "$RAW" ]; then
@@ -66,7 +68,7 @@ cd /tmp
 if command -v zpkg >/dev/null; then
   echo "==> Installing via zpkg"
   sudo zpkg remove web-ftp-client 2>/dev/null || true
-  sudo zpkg install /tmp/web-ftp-client-v${VERSION}.raw
+  sudo zpkg install /tmp/web-ftp-client.raw
   sudo systemctl daemon-reload
   sudo systemctl enable --now web-ftp-client.service
   sudo web-ftp-client status || true
@@ -91,7 +93,7 @@ sudo ./start.sh up
 if command -v zpkg >/dev/null; then
   echo "==> Also installing zpkg module for dashboard tile"
   sudo zpkg remove web-ftp-client 2>/dev/null || true
-  sudo zpkg install /tmp/web-ftp-client-v${VERSION}.raw
+  sudo zpkg install /tmp/web-ftp-client.raw
   sudo systemctl daemon-reload
 fi
 REMOTE
