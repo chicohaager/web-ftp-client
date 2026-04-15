@@ -1,0 +1,27 @@
+{
+  "name": "web-ftp-client",
+  "ui": {
+    "name": "web-ftp-client",
+    "title": {
+      "en_us": "Web FTP Client",
+      "de_de": "Web FTP Client"
+    },
+    "prefetch": true,
+    "show": true,
+    "entry": "/modules/web-ftp-client/index.html",
+    "icon": "/modules/web-ftp-client/logo.svg",
+    "description": "Dual-pane FTP / FTPS / SFTP client for ZimaOS with transfer queue and encrypted credentials",
+    "formality": {
+      "type": "newtab",
+      "props": {
+        "width": "100vh",
+        "height": "100vh",
+        "hasModalCard": true,
+        "animation": "zoom-in"
+      }
+    }
+  },
+  "services": [
+    { "name": "web-ftp-client" }
+  ]
+}

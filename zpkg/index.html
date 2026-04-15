@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Web FTP Client</title>
+  <style>
+    html, body { margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; display: grid; place-items: center; background: linear-gradient(135deg, #0ea5e9, #1d4ed8); color: #f8fafc; }
+    .card { background: rgba(15, 23, 42, 0.88); border-radius: 16px; padding: 2.5rem 3rem; text-align: center; max-width: 440px; box-shadow: 0 25px 60px rgba(0,0,0,0.45); }
+    .logo { width: 56px; height: 56px; margin: 0 auto 1rem; display: block; }
+    h1 { margin: 0 0 0.25rem; font-size: 1.3rem; font-weight: 600; letter-spacing: -0.01em; }
+    .sub { margin: 0 0 1.5rem; color: #94a3b8; font-size: 0.85rem; }
+    .status { margin: 0; color: #cbd5e1; font-size: 0.95rem; min-height: 1.4em; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -2px; margin-right: 0.5rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn { display: inline-block; margin-top: 1.5rem; padding: 0.8rem 2rem; background: #0ea5e9; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; transition: background 0.15s, transform 0.1s; border: none; cursor: pointer; }
+    .btn:hover { background: #0284c7; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#38bdf8"/>
+          <stop offset="1" stop-color="#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+      <rect x="8" y="16" width="16" height="32" rx="2.5" fill="#ffffff"/>
+      <rect x="40" y="16" width="16" height="32" rx="2.5" fill="#ffffff"/>
+      <g stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M25 26 H39"/><path d="M35.6 22.6 L39 26 L35.6 29.4"/>
+        <path d="M39 38 H25"/><path d="M28.4 34.6 L25 38 L28.4 41.4"/>
+      </g>
+    </svg>
+    <h1>Web FTP Client</h1>
+    <p class="sub">Connecting to service…</p>
+    <p class="status" id="status"><span class="spinner"></span>Probing port 8089</p>
+    <a id="launch" class="btn" href="#" target="_top" rel="noopener">Open Web FTP Client</a>
+  </div>
+  <script>
+    (function () {
+      var host = window.location.hostname || 'localhost';
+      var port = 8089;
+      var target = 'http://' + host + ':' + port + '/';
+      var launch = document.getElementById('launch');
+      var status = document.getElementById('status');
+      launch.href = target;
+      launch.style.display = 'none';
+
+      var attempts = 0;
+      var maxAttempts = 60; // 60 * 2s = 120s
+
+      function openTarget() {
+        try {
+          if (window.top && window.top !== window.self) {
+            window.top.location.href = target;
+            return;
+          }
+        } catch (e) { /* cross-origin, fall through */ }
+        window.location.href = target;
+      }
+
+      function probe() {
+        attempts++;
+        var xhr = new XMLHttpRequest();
+        xhr.timeout = 1800;
+        xhr.open('GET', target + '?_ping=' + Date.now(), true);
+        xhr.onload = function () {
+          status.innerHTML = 'Service ready — launching…';
+          setTimeout(openTarget, 200);
+        };
+        xhr.onerror = xhr.ontimeout = function () {
+          if (attempts < maxAttempts) {
+            status.innerHTML = '<span class="spinner"></span>Service is starting — attempt ' + attempts + ' of ' + maxAttempts;
+            setTimeout(probe, 2000);
+          } else {
+            status.innerHTML = 'Service did not start in time.';
+            launch.textContent = 'Try opening manually';
+            launch.style.display = 'inline-block';
+          }
+        };
+        try { xhr.send(); } catch (e) {
+          status.innerHTML = 'Unable to probe service — click below to try directly.';
+          launch.style.display = 'inline-block';
+        }
+      }
+
+      probe();
+    })();
+  </script>
+</body>
+</html>
