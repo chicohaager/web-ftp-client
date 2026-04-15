@@ -9,7 +9,7 @@ services:
     ports:
       - "${WEBUI_PORT:-8089}:3000"
     volumes:
-      - /DATA/AppData/$AppID:/app/data
+      - /DATA/AppData/${AppID:-web-ftp-client}:/app/data
       - /DATA:/mnt/nas
     environment:
       - NODE_ENV=production
@@ -17,9 +17,9 @@ services:
       - DATA_DIR=/mnt/nas
       - APP_DATA=/app/data
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-auto}
-      - PUID=$PUID
-      - PGID=$PGID
-      - TZ=$TZ
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Berlin}
     x-casaos:
       envs:
         - container: NODE_ENV
@@ -51,7 +51,7 @@ x-casaos:
     en_us: Professional web-based FTP/FTPS/SFTP client with dual-pane file manager, transfer queue, and encrypted credential storage.
     de_de: Professioneller web-basierter FTP/FTPS/SFTP-Client mit Dual-Pane Dateimanager, Transfer-Queue und verschlüsselter Zugangsdatenspeicherung.
   developer: Holgi
-  icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/filezilla.svg
+  icon: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJXZWIgRlRQIENsaWVudCI+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImJnIiB4MT0iMCIgeTE9IjAiIHgyPSI2NCIgeTI9IjY0IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzBlYTVlOSIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMxZDRlZDgiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgogIDxyZWN0IHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjE0IiBmaWxsPSJ1cmwoI2JnKSIvPgogIDxyZWN0IHg9IjgiIHk9IjE2IiB3aWR0aD0iMTYiIGhlaWdodD0iMzIiIHJ4PSIyLjUiIGZpbGw9IiNmZmZmZmYiLz4KICA8cmVjdCB4PSI0MCIgeT0iMTYiIHdpZHRoPSIxNiIgaGVpZ2h0PSIzMiIgcng9IjIuNSIgZmlsbD0iI2ZmZmZmZiIvPgogIDxnIGZpbGw9IiM3ZGQzZmMiPgogICAgPHJlY3QgeD0iMTEiIHk9IjIwIiB3aWR0aD0iMTAiIGhlaWdodD0iMS42IiByeD0iMC44Ii8+CiAgICA8cmVjdCB4PSIxMSIgeT0iMjMuNCIgd2lkdGg9IjciIGhlaWdodD0iMS42IiByeD0iMC44Ii8+CiAgICA8cmVjdCB4PSIxMSIgeT0iNDMiIHdpZHRoPSIxMCIgaGVpZ2h0PSIxLjYiIHJ4PSIwLjgiLz4KICAgIDxyZWN0IHg9IjExIiB5PSI0Ni40IiB3aWR0aD0iNi41IiBoZWlnaHQ9IjEuNiIgcng9IjAuOCIvPgogICAgPHJlY3QgeD0iNDMiIHk9IjIwIiB3aWR0aD0iMTAiIGhlaWdodD0iMS42IiByeD0iMC44Ii8+CiAgICA8cmVjdCB4PSI0MyIgeT0iMjMuNCIgd2lkdGg9IjgiIGhlaWdodD0iMS42IiByeD0iMC44Ii8+CiAgICA8cmVjdCB4PSI0MyIgeT0iNDMiIHdpZHRoPSIxMCIgaGVpZ2h0PSIxLjYiIHJ4PSIwLjgiLz4KICAgIDxyZWN0IHg9IjQzIiB5PSI0Ni40IiB3aWR0aD0iNyIgaGVpZ2h0PSIxLjYiIHJ4PSIwLjgiLz4KICA8L2c+CiAgPGcgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjIuNiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBmaWxsPSJub25lIj4KICAgIDxwYXRoIGQ9Ik0yNSAyNiBIMzkiLz4KICAgIDxwYXRoIGQ9Ik0zNS42IDIyLjYgTDM5IDI2IEwzNS42IDI5LjQiLz4KICAgIDxwYXRoIGQ9Ik0zOSAzOCBIMjUiLz4KICAgIDxwYXRoIGQ9Ik0yOC40IDM0LjYgTDI1IDM4IEwyOC40IDQxLjQiLz4KICA8L2c+Cjwvc3ZnPgo="
   tagline:
     en_us: Secure File Transfer Client
     de_de: Sicherer Dateiübertragungs-Client

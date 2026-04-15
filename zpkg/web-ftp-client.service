@@ -1,0 +1,16 @@
+[Unit]
+Description=Web FTP Client (Docker Compose stack)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=DOCKER_CONFIG=/DATA/.docker
+ExecStartPre=/usr/bin/web-ftp-client install
+ExecStart=/usr/bin/web-ftp-client start
+ExecStop=/usr/bin/web-ftp-client stop
+
+[Install]
+WantedBy=multi-user.target

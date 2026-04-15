@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,7 @@ export function RenameDialog({ open, currentName, onConfirm, onCancel }: RenameD
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Rename</DialogTitle>
+          <DialogDescription>Enter a new name for this item.</DialogDescription>
         </DialogHeader>
         <Input
           ref={inputRef}

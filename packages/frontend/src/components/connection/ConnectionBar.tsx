@@ -10,6 +10,7 @@ import {
 import { Plug, PlugZap, Loader2, Key, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { SaveConnectionDialog } from '@/components/dialogs/SaveConnectionDialog';
+import { Logo } from '@/components/brand/Logo';
 import type { Protocol } from '@web-ftp-client/shared';
 
 export function ConnectionBar() {
@@ -35,6 +36,11 @@ export function ConnectionBar() {
 
   return (
     <header className="flex items-center gap-2 border-b bg-card px-4 py-2">
+      <div className="flex items-center gap-2 pr-2 shrink-0 select-none">
+        <Logo size={24} />
+        <span className="hidden md:inline text-sm font-semibold tracking-tight">Web FTP Client</span>
+      </div>
+
       <Select value={protocol} onValueChange={(v) => setProtocol(v as Protocol)}>
         <SelectTrigger className="w-[100px] h-8 text-xs">
           <SelectValue />

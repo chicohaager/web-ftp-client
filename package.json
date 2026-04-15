@@ -6,7 +6,12 @@
     "dev": "pnpm -r --parallel run dev",
     "build": "pnpm --filter=shared build && pnpm --filter=frontend build && pnpm --filter=backend build",
     "start": "node packages/backend/dist/index.js",
-    "type-check": "pnpm -r run type-check"
+    "type-check": "pnpm -r run type-check",
+    "package": "bash scripts/package-release.sh",
+    "package:zpkg": "bash scripts/package-zpkg.sh",
+    "package:all": "bash scripts/package-zpkg.sh && bash scripts/package-release.sh",
+    "package:icewhale": "bash scripts/package-icewhale.sh",
+    "deploy": "bash scripts/deploy-remote.sh"
   },
   "engines": {
     "node": ">=20",

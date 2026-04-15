@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ export function NewFolderDialog({ open, onConfirm, onCancel }: NewFolderDialogPr
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>New Folder</DialogTitle>
+          <DialogDescription>Enter a name for the new folder.</DialogDescription>
         </DialogHeader>
         <Input
           placeholder="Folder name"

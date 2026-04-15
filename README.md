@@ -18,13 +18,29 @@ A professional web-based FTP/FTPS/SFTP client for ZimaOS and CasaOS.
 
 ## Quick Start
 
-### Docker (recommended)
+### On ZimaOS (recommended)
 
 ```bash
-docker compose up -d
+./start.sh
 ```
 
-Access at `http://localhost:8089`
+The `start.sh` wrapper auto-detects ZimaOS, exports `DOCKER_CONFIG=/DATA/.docker`
+(required because ZimaOS has a read-only root filesystem), seeds sensible
+defaults for `AppID`/`PUID`/`PGID`/`TZ`, and runs `docker compose up -d --build`.
+
+Access at `http://<zima-host>:8089`.
+
+Alternatively, install the zpkg module (`web-ftp-client.raw`) — see
+[INSTALL-ZPKG.md](INSTALL-ZPKG.md).
+
+### On plain Docker hosts
+
+```bash
+cp .env.example .env   # optional: edit values
+docker compose up -d --build
+```
+
+Access at `http://localhost:8089`.
 
 ### Development
 
@@ -43,7 +59,23 @@ Backend runs on `http://localhost:3000`, Frontend dev server on `http://localhos
 
 ## ZimaOS / CasaOS Installation
 
-Add as a custom app store or import the `docker-compose.yml` directly.
+Two paths:
+
+1. **Docker Compose import** — paste `docker-compose.yml` into the CasaOS
+   "Install a customized app" dialog. Icon is embedded as a data-URI.
+2. **zpkg module** — `sudo zpkg install web-ftp-client.raw`, then
+   `sudo systemctl enable --now web-ftp-client.service`. Adds a native
+   dashboard tile and a `web-ftp-client` CLI.
+
+## Troubleshooting
+
+**`mkdir /root/.docker: read-only file system`** — You're on ZimaOS and ran
+`docker compose` without the config override. Use `./start.sh` instead, or
+prefix manually:
+
+```bash
+sudo DOCKER_CONFIG=/DATA/.docker docker compose up -d --build
+```
 
 ## License
 

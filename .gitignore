@@ -5,3 +5,8 @@ dist/
 *.sqlite
 .DS_Store
 .vite/
+*.tsbuildinfo
+
+# Holgi's local working docs — not part of the public repo
+ZIMAOS-KNOWLEDGE.md
+system-status.md
