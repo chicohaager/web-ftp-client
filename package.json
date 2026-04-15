@@ -1,0 +1,15 @@
+{
+  "name": "web-ftp-client",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm --filter=shared build && pnpm --filter=frontend build && pnpm --filter=backend build",
+    "start": "node packages/backend/dist/index.js",
+    "type-check": "pnpm -r run type-check"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}

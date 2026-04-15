@@ -1,0 +1,14 @@
+{
+  "name": "@web-ftp-client/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/types.js",
+  "types": "./dist/types.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

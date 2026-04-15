@@ -1,0 +1,63 @@
+name: web-ftp-client
+
+services:
+  web-ftp-client:
+    build: .
+    image: web-ftp-client:latest
+    container_name: web-ftp-client
+    restart: unless-stopped
+    ports:
+      - "${WEBUI_PORT:-8089}:3000"
+    volumes:
+      - /DATA/AppData/$AppID:/app/data
+      - /DATA:/mnt/nas
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATA_DIR=/mnt/nas
+      - APP_DATA=/app/data
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-auto}
+      - PUID=$PUID
+      - PGID=$PGID
+      - TZ=$TZ
+    x-casaos:
+      envs:
+        - container: NODE_ENV
+          description:
+            en_us: Node environment
+        - container: ENCRYPTION_KEY
+          description:
+            en_us: Encryption key for stored credentials (leave 'auto' to generate)
+      ports:
+        - container: "3000"
+          description:
+            en_us: Web UI Port
+      volumes:
+        - container: /app/data
+          description:
+            en_us: Application data (database, encryption keys)
+        - container: /mnt/nas
+          description:
+            en_us: NAS storage directory
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: web-ftp-client
+  author: Holgi
+  category: Utilities
+  description:
+    en_us: Professional web-based FTP/FTPS/SFTP client with dual-pane file manager, transfer queue, and encrypted credential storage.
+    de_de: Professioneller web-basierter FTP/FTPS/SFTP-Client mit Dual-Pane Dateimanager, Transfer-Queue und verschlüsselter Zugangsdatenspeicherung.
+  developer: Holgi
+  icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/filezilla.svg
+  tagline:
+    en_us: Secure File Transfer Client
+    de_de: Sicherer Dateiübertragungs-Client
+  title:
+    en_us: Web FTP Client
+    de_de: Web FTP Client
+  port_map: "8089"
+  index: /
+  scheme: http
