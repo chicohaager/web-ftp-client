@@ -76,7 +76,7 @@
   body {
     @apply text-foreground antialiased;
     font-family: 'Fira Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.5;
     margin: 0;
     overflow: hidden;

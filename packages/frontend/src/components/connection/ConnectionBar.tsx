@@ -39,13 +39,13 @@ export function ConnectionBar() {
 
   return (
     <header className="flex items-center gap-2 border-b border-border bg-card px-4 py-2.5">
-      <div className="flex items-center gap-2 pr-3 shrink-0 select-none">
-        <Logo size={28} />
-        <span className="hidden md:inline text-sm font-semibold tracking-tight text-foreground">Web FTP Client</span>
+      <div className="flex items-center gap-2.5 pr-3 shrink-0 select-none">
+        <Logo size={36} />
+        <span className="hidden md:inline text-base font-semibold tracking-tight text-foreground">Web FTP Client</span>
       </div>
 
       <Select value={protocol} onValueChange={(v) => setProtocol(v as Protocol)}>
-        <SelectTrigger className="w-[100px] h-8 text-xs">
+        <SelectTrigger className="w-[110px] h-9 text-sm">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -60,7 +60,7 @@ export function ConnectionBar() {
         value={host}
         onChange={(e) => setField('host', e.target.value)}
         onKeyDown={handleKeyDown}
-        className="h-8 text-xs flex-1 min-w-[120px]"
+        className="h-9 text-sm flex-1 min-w-[120px]"
         disabled={isConnected}
       />
 
@@ -69,7 +69,7 @@ export function ConnectionBar() {
         value={port}
         onChange={(e) => setField('port', parseInt(e.target.value) || 0)}
         onKeyDown={handleKeyDown}
-        className="h-8 text-xs w-[65px]"
+        className="h-9 text-sm w-[65px]"
         disabled={isConnected}
       />
 
@@ -78,7 +78,7 @@ export function ConnectionBar() {
         value={username}
         onChange={(e) => setField('username', e.target.value)}
         onKeyDown={handleKeyDown}
-        className="h-8 text-xs w-[100px]"
+        className="h-9 text-sm w-[100px]"
         disabled={isConnected}
       />
 
@@ -88,7 +88,7 @@ export function ConnectionBar() {
         value={password}
         onChange={(e) => setField('password', e.target.value)}
         onKeyDown={handleKeyDown}
-        className="h-8 text-xs w-[100px]"
+        className="h-9 text-sm w-[100px]"
         disabled={isConnected}
       />
 
@@ -99,7 +99,7 @@ export function ConnectionBar() {
             <Button
               variant={privateKey ? 'default' : 'outline'}
               size="icon"
-              className="h-8 w-8 shrink-0"
+              className="h-9 w-9 shrink-0"
               title="SSH Private Key"
             >
               <Key className="w-3.5 h-3.5" />
@@ -152,7 +152,7 @@ export function ConnectionBar() {
 
       {isConnected ? (
         <>
-          <Button size="sm" variant="destructive" onClick={disconnect} className="h-8 text-xs">
+          <Button size="sm" variant="destructive" onClick={disconnect} className="h-9 text-sm">
             <PlugZap className="w-3.5 h-3.5 mr-1" />
             Disconnect
           </Button>
@@ -160,14 +160,14 @@ export function ConnectionBar() {
             size="sm"
             variant="outline"
             onClick={() => setShowSaveDialog(true)}
-            className="h-8 text-xs"
+            className="h-9 text-sm"
           >
             <Save className="w-3.5 h-3.5 mr-1" />
             Save
           </Button>
         </>
       ) : (
-        <Button size="sm" onClick={connect} disabled={isConnecting || !host} className="h-8 text-xs">
+        <Button size="sm" onClick={connect} disabled={isConnecting || !host} className="h-9 text-sm">
           {isConnecting ? (
             <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
           ) : (
@@ -185,7 +185,7 @@ export function ConnectionBar() {
             if (conn) loadSavedConnection(conn);
           }}
         >
-          <SelectTrigger className="w-[120px] h-8 text-xs">
+          <SelectTrigger className="w-[140px] h-9 text-sm">
             <SelectValue placeholder="Saved..." />
           </SelectTrigger>
           <SelectContent>
