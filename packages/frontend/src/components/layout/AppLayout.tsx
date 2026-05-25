@@ -31,16 +31,24 @@ export function AppLayout() {
     local.fetchFiles('/api/local', '/');
   }, []);
 
-  // Apply a loaded bookmark's default local path immediately (works without connect)
+  // Apply a loaded bookmark's default local path immediately (works without
+  // connect), then clear it so re-loading the same bookmark from the
+  // dropdown navigates again — without this, setting the same string twice
+  // is dep-equal and the effect skips.
   useEffect(() => {
-    if (pendingLocal) local.navigateTo(pendingLocal);
+    if (pendingLocal) {
+      local.navigateTo(pendingLocal);
+      clearPendingDefaults();
+    }
   }, [pendingLocal]);
 
   useEffect(() => {
     if (isConnected) {
       remote.fetchFiles('/api/remote', pendingRemote ?? '/');
       toast.success('Connected', { description: connectionStatus.serverInfo });
-      clearPendingDefaults();
+      // Local path was already consumed by its own effect — only the remote
+      // pendingRemote needs clearing here.
+      if (pendingRemote) clearPendingDefaults();
     }
   }, [isConnected]);
 
@@ -192,7 +200,7 @@ export function AppLayout() {
             sortDirection={local.sortDirection}
             searchFilter={local.searchFilter}
             isConnected={isConnected}
-            isReadOnly={isReadOnly}
+            isReadOnly={false}
             onSelect={local.select}
             onSort={local.setSort}
             onSearchFilter={local.setSearchFilter}

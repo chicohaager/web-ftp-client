@@ -104,17 +104,20 @@ export class FtpService {
   }
 
   // basic-ftp has no server-side copy. Used by the edit endpoint: read the
-  // current file fully into memory (we already cap inputs at 1 MiB upstream)
-  // then re-upload it to dstPath as the .bak. Inefficient but correct.
+  // current file fully into memory (the edit endpoint stat-caps the source
+  // at 1 MiB; the 2 MiB writable ceiling is a defense-in-depth guard) then
+  // re-upload to dstPath as the .bak. Bytes are preserved verbatim — no
+  // UTF-8 round-trip — so a Latin-1 or binary-tinged source's backup is
+  // byte-identical to the original.
   async copy(srcPath: string, dstPath: string): Promise<void> {
-    const buf = new CappedBufferWritable(2 * 1024 * 1024); // generous cap; edit endpoint enforces real limit
+    const buf = new CappedBufferWritable(2 * 1024 * 1024);
     try {
       await this.client.downloadTo(buf, srcPath);
     } catch (err) {
-      if (!buf.truncated && buf.total === 0) throw err;
+      // Only the cap-destroy is expected here; partial download must surface.
+      if (!buf.truncated) throw err;
     }
-    const data = Buffer.from(buf.asString(), 'utf8');
-    const readable = Readable.from(data);
+    const readable = Readable.from(buf.asBuffer());
     await this.client.uploadFrom(readable, dstPath);
   }
 
@@ -130,9 +133,10 @@ export class FtpService {
     try {
       await this.client.downloadTo(buf, remotePath);
     } catch (err) {
-      // basic-ftp throws if the writable was destroyed for the cap — that's
-      // expected. Rethrow only when no bytes landed (real error).
-      if (!buf.truncated && buf.total === 0) throw err;
+      // Only swallow the cap-induced destroy; partial download due to a
+      // dropped data connection must surface so the caller can fail rather
+      // than render a half-file as if it were complete.
+      if (!buf.truncated) throw err;
     }
     return {
       content: buf.asString(),

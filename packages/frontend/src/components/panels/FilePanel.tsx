@@ -36,9 +36,10 @@ interface FilePanelProps {
   searchFilter: string;
   disabled?: boolean;
   isConnected: boolean;
-  // True if mutating ops on this pane should be blocked. For local panes this
-  // is wired to "session is read-only" because upload from local mutates the
-  // remote side. For the remote pane it's just the session flag.
+  // True if mutating ops on this pane's filesystem should be blocked. Only
+  // ever true for the remote pane (when the session is read-only); local
+  // edits/renames/mkdirs aren't related to remote read-only. AppLayout
+  // hard-codes false for the local pane.
   isReadOnly?: boolean;
   onSelect: (id: string, ctrl: boolean, shift: boolean) => void;
   onSort: (column: 'name' | 'size' | 'modified') => void;
@@ -71,6 +72,9 @@ export function FilePanel({
   const [renameTarget, setRenameTarget] = useState('');
 
   const sessionId = useConnectionStore((s) => s.sessionId);
+  // Whether the active remote session is read-only — needed for the Upload
+  // button on the LOCAL pane, where the action mutates the REMOTE side.
+  const remoteSessionReadOnly = useConnectionStore((s) => s.status.status === 'connected' && s.status.readOnly === true);
   const [previewState, setPreviewState] = useState<{
     open: boolean;
     fileName: string;
@@ -242,7 +246,7 @@ export function FilePanel({
     e.preventDefault();
     // Drop onto Remote means upload from Local → mutates remote → blocked in
     // read-only mode. Drop onto Local is always a download from Remote.
-    if (panelType === 'remote' && isReadOnly) return;
+    if (panelType === 'remote' && (isReadOnly || remoteSessionReadOnly)) return;
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'));
       if (data.source !== panelType) {
@@ -362,10 +366,13 @@ export function FilePanel({
               className="h-7 w-7"
               onClick={handleTransfer}
               // Local→Remote upload is the only direction blocked by read-only.
-              disabled={panelType === 'local' && isReadOnly}
+              // Wired here via remoteSessionReadOnly read off the connection
+              // status (AppLayout's handleTransfer is the actual gate; this
+              // disables the button so the user can see why it's inactive).
+              disabled={panelType === 'local' && remoteSessionReadOnly}
               title={
                 panelType === 'local'
-                  ? (isReadOnly ? 'Upload blocked — connection is read-only' : 'Upload')
+                  ? (remoteSessionReadOnly ? 'Upload blocked — connection is read-only' : 'Upload')
                   : 'Download'
               }
             >
