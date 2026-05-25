@@ -18,7 +18,21 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', '..', 'data');
 const APP_DATA = process.env.APP_DATA || path.join(__dirname, '..', 'data');
 
-app.use(express.json({ limit: '100kb' }));
+// 2 MiB ceiling so the /edit endpoint (1 MiB content cap + path + JSON
+// overhead) can comfortably pass. Other routes carry tiny bodies, so the
+// extra ceiling is harmless.
+app.use(express.json({ limit: '2mb' }));
+
+// Convert body-parser's PayloadTooLargeError into a JSON 413 — otherwise
+// Express returns an HTML error page and the frontend's `await res.json()`
+// blows up with "JSON.parse: unexpected character at line 1 column 1".
+app.use((err: Error & { type?: string }, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err.type === 'entity.too.large') {
+    res.status(413).json({ ok: false, error: 'Request body exceeds size limit' });
+    return;
+  }
+  next(err);
+});
 
 // Request logging (no credentials in logs)
 app.use((req, res, next) => {
