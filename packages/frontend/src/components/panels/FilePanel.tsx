@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
-import type { FileItem } from '@web-ftp-client/shared';
+import type { FileItem, PreviewResponse } from '@web-ftp-client/shared';
 import { FileTable } from '@/components/files/FileTable';
 import { FileContextMenu } from '@/components/files/FileContextMenu';
 import { DeleteDialog } from '@/components/dialogs/DeleteDialog';
 import { RenameDialog } from '@/components/dialogs/RenameDialog';
 import { NewFolderDialog } from '@/components/dialogs/NewFolderDialog';
+import { PreviewDialog } from '@/components/dialogs/PreviewDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +18,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/stores/uiStore';
+import { useConnectionStore } from '@/stores/connectionStore';
+import { isPreviewable } from '@/lib/preview';
 
 interface FilePanelProps {
   panelType: 'local' | 'remote';
@@ -61,8 +64,24 @@ export function FilePanel({
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [renameTarget, setRenameTarget] = useState('');
 
+  const sessionId = useConnectionStore((s) => s.sessionId);
+  const [previewState, setPreviewState] = useState<{
+    open: boolean;
+    fileName: string;
+    path: string;
+    loading: boolean;
+    error: string | null;
+    content: string | null;
+    truncated: boolean;
+    size: number;
+    bytesRead: number;
+  }>({ open: false, fileName: '', path: '', loading: false, error: null, content: null, truncated: false, size: 0, bytesRead: 0 });
+
   const pathSegments = currentPath.split('/').filter(Boolean);
   const selectedFiles = getSelectedFiles();
+  const previewCandidate = selectedFiles.length === 1 && selectedFiles[0].type === 'file' && isPreviewable(selectedFiles[0].name)
+    ? selectedFiles[0]
+    : null;
 
   const handleOpen = (file: FileItem) => {
     if (file.type === 'directory') {
@@ -92,6 +111,33 @@ export function FilePanel({
       setShowRenameDialog(true);
     }
   }, [selectedFiles]);
+
+  const handlePreview = useCallback(async () => {
+    if (!previewCandidate) return;
+    const file = previewCandidate;
+    const fullPath = currentPath === '/'
+      ? `/${file.name}`
+      : `${currentPath}/${file.name}`;
+    setPreviewState({
+      open: true, fileName: file.name, path: fullPath,
+      loading: true, error: null, content: null,
+      truncated: false, size: 0, bytesRead: 0,
+    });
+    try {
+      const headers: Record<string, string> = {};
+      if (panelType === 'remote' && sessionId) headers['x-session-id'] = sessionId;
+      const res = await fetch(`/api/${panelType}/preview?path=${encodeURIComponent(fullPath)}`, { headers });
+      const data = await res.json();
+      if (data.ok) {
+        const p = data.data as PreviewResponse;
+        setPreviewState((s) => ({ ...s, loading: false, content: p.content, truncated: p.truncated, size: p.size, bytesRead: p.bytesRead }));
+      } else {
+        setPreviewState((s) => ({ ...s, loading: false, error: data.error ?? 'Preview failed' }));
+      }
+    } catch (err) {
+      setPreviewState((s) => ({ ...s, loading: false, error: err instanceof Error ? err.message : 'Preview failed' }));
+    }
+  }, [previewCandidate, currentPath, panelType, sessionId]);
 
   const handleCopyPath = useCallback(() => {
     if (selectedFiles.length === 1) {
@@ -154,6 +200,8 @@ export function FilePanel({
       hasSelection={selectedIds.size > 0}
       selectionCount={selectedIds.size}
       isConnected={isConnected}
+      canPreview={previewCandidate !== null}
+      onPreview={handlePreview}
       onTransfer={handleTransfer}
       onRename={handleRename}
       onDelete={() => setShowDeleteDialog(true)}
@@ -172,29 +220,31 @@ export function FilePanel({
           <Badge
             variant="secondary"
             className={cn(
-              'text-[10px] px-2 py-0.5 shrink-0',
+              'text-[11px] px-2 py-0.5 shrink-0',
               panelType === 'local' ? 'bg-[hsl(var(--local-accent))] text-primary' : 'bg-[hsl(var(--remote-accent))] text-muted-foreground',
             )}
           >
             {label}
           </Badge>
           <Breadcrumb className="flex-1 min-w-0">
-            <BreadcrumbList className="text-xs flex-nowrap">
+            <BreadcrumbList className="text-sm flex-nowrap">
               <BreadcrumbItem>
                 <BreadcrumbLink className="cursor-pointer hover:text-foreground" onClick={() => onNavigateTo('/')}>
                   /
                 </BreadcrumbLink>
               </BreadcrumbItem>
               {pathSegments.map((segment, i) => (
-                <BreadcrumbItem key={i}>
+                <span key={i} className="contents">
                   <BreadcrumbSeparator />
-                  <BreadcrumbLink
-                    className="cursor-pointer hover:text-foreground truncate max-w-[100px]"
-                    onClick={() => onNavigateTo('/' + pathSegments.slice(0, i + 1).join('/'))}
-                  >
-                    {segment}
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink
+                      className="cursor-pointer hover:text-foreground truncate max-w-[100px]"
+                      onClick={() => onNavigateTo('/' + pathSegments.slice(0, i + 1).join('/'))}
+                    >
+                      {segment}
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                </span>
               ))}
             </BreadcrumbList>
           </Breadcrumb>
@@ -202,16 +252,16 @@ export function FilePanel({
 
         {/* Toolbar */}
         <div className="flex items-center gap-0.5 px-2 py-1 border-b border-border bg-card">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onGoBack} title="Back">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onGoBack} title="Back">
             <ArrowLeft className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onGoForward} title="Forward">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onGoForward} title="Forward">
             <ArrowRight className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onGoUp} title="Up (Backspace)">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onGoUp} title="Up (Backspace)">
             <ArrowUp className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onRefresh} title="Refresh (F5)">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onRefresh} title="Refresh (F5)">
             <RefreshCw className="w-3.5 h-3.5" />
           </Button>
 
@@ -222,7 +272,7 @@ export function FilePanel({
               placeholder="Filter..."
               value={searchFilter}
               onChange={(e) => onSearchFilter(e.target.value)}
-              className="h-6 text-xs pl-6 pr-2"
+              className="h-7 text-sm pl-6 pr-2"
             />
           </div>
 
@@ -230,7 +280,7 @@ export function FilePanel({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6"
+              className="h-7 w-7"
               onClick={handleTransfer}
               title={panelType === 'local' ? 'Upload' : 'Download'}
             >
@@ -238,7 +288,7 @@ export function FilePanel({
             </Button>
           )}
 
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowNewFolderDialog(true)} title="New Folder">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowNewFolderDialog(true)} title="New Folder">
             <FolderPlus className="w-3.5 h-3.5" />
           </Button>
         </div>
@@ -258,7 +308,7 @@ export function FilePanel({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-3 py-1.5 border-t border-border bg-card text-[10px] text-muted-foreground shrink-0">
+        <div className="flex items-center justify-between px-3 py-1.5 border-t border-border bg-card text-[11px] text-muted-foreground shrink-0">
           <span>{filteredFiles.length}{searchFilter ? `/${files.length}` : ''} items</span>
           <span>{selectedIds.size > 0 ? `${selectedIds.size} selected` : ''}</span>
         </div>
@@ -281,6 +331,18 @@ export function FilePanel({
           open={showNewFolderDialog}
           onConfirm={(name) => { onMkdir(name); setShowNewFolderDialog(false); }}
           onCancel={() => setShowNewFolderDialog(false)}
+        />
+        <PreviewDialog
+          open={previewState.open}
+          fileName={previewState.fileName}
+          path={previewState.path}
+          loading={previewState.loading}
+          error={previewState.error}
+          content={previewState.content}
+          truncated={previewState.truncated}
+          size={previewState.size}
+          bytesRead={previewState.bytesRead}
+          onClose={() => setPreviewState((s) => ({ ...s, open: false }))}
         />
       </div>
     </FileContextMenu>

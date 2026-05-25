@@ -1,6 +1,7 @@
 import SftpClient from 'ssh2-sftp-client';
 import type { FileItem, ConnectRequest } from '@web-ftp-client/shared';
 import crypto from 'crypto';
+import { CappedBufferWritable } from '../lib/preview-stream.js';
 
 function fileId(dirPath: string, name: string): string {
   return crypto.createHash('sha256').update(`${dirPath}/${name}`).digest('hex').slice(0, 16);
@@ -98,5 +99,25 @@ export class SftpService {
 
   async pwd(): Promise<string> {
     return await this.client.cwd();
+  }
+
+  async previewText(remotePath: string, maxBytes: number): Promise<{ content: string; truncated: boolean; bytesRead: number; size: number }> {
+    let size = 0;
+    try {
+      const stat = await this.client.stat(remotePath);
+      size = stat.size;
+    } catch { /* fall back to bytesRead below */ }
+    const buf = new CappedBufferWritable(maxBytes);
+    try {
+      await this.client.get(remotePath, buf);
+    } catch (err) {
+      if (!buf.truncated && buf.total === 0) throw err;
+    }
+    return {
+      content: buf.asString(),
+      truncated: buf.truncated,
+      bytesRead: buf.total,
+      size: size || buf.total,
+    };
   }
 }

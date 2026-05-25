@@ -3,10 +3,11 @@ import { FtpService } from '../services/ftp-service.js';
 import { SftpService } from '../services/sftp-service.js';
 import { transferQueue } from '../services/transfer-queue.js';
 import { safePath, safeFileName } from '../lib/path-guard.js';
-import type { ConnectRequest, ApiResponse, ListResponse, ConnectionStatus, TransferItem } from '@web-ftp-client/shared';
+import type { ConnectRequest, ApiResponse, ListResponse, ConnectionStatus, TransferItem, PreviewResponse } from '@web-ftp-client/shared';
 import { v4 as uuid } from 'uuid';
 import fs from 'fs/promises';
 import path from 'path';
+import { PREVIEW_MAX_BYTES, isPreviewable } from '../lib/preview-config.js';
 
 export const remoteRouter: RouterType = Router();
 
@@ -188,6 +189,38 @@ remoteRouter.delete('/delete', async (req, res) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Delete failed';
     console.error(`[DELETE] Failed: ${message}`);
+    res.status(500).json({ ok: false, error: message } satisfies ApiResponse);
+  }
+});
+
+remoteRouter.get('/preview', async (req, res) => {
+  const session = getSession(req.headers['x-session-id'] as string | undefined);
+  if (!session || !session.service.isConnected()) {
+    res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
+    return;
+  }
+  try {
+    const remotePath = (req.query.path as string) || '';
+    const fileName = path.posix.basename(remotePath);
+    if (!fileName) {
+      res.status(400).json({ ok: false, error: 'Path is required' } satisfies ApiResponse);
+      return;
+    }
+    if (!isPreviewable(fileName)) {
+      res.status(400).json({ ok: false, error: 'Preview is only available for text-based files' } satisfies ApiResponse);
+      return;
+    }
+    const result = await session.service.previewText(remotePath, PREVIEW_MAX_BYTES);
+    const data: PreviewResponse = {
+      content: result.content,
+      truncated: result.truncated,
+      size: result.size,
+      bytesRead: result.bytesRead,
+    };
+    res.json({ ok: true, data } satisfies ApiResponse<PreviewResponse>);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Preview failed';
+    console.error(`[REMOTE PREVIEW] Failed: ${message}`);
     res.status(500).json({ ok: false, error: message } satisfies ApiResponse);
   }
 });
