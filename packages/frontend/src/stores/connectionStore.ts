@@ -13,16 +13,22 @@ interface ConnectionState {
   status: ConnectionStatus;
   savedConnections: ConnectionConfig[];
 
+  // Defaults from the most recently loaded saved-connection, consumed by AppLayout
+  // after a successful connect to jump both panes to the right folders.
+  pendingDefaultLocalPath: string | null;
+  pendingDefaultRemotePath: string | null;
+
   setField: (field: string, value: string | number) => void;
   setProtocol: (protocol: Protocol) => void;
   setStatus: (status: ConnectionStatus) => void;
   setSavedConnections: (connections: ConnectionConfig[]) => void;
   loadSavedConnection: (conn: ConnectionConfig) => void;
+  clearPendingDefaults: () => void;
 
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   fetchConnections: () => Promise<void>;
-  saveConnection: (name: string) => Promise<void>;
+  saveConnection: (name: string, opts?: { defaultLocalPath?: string; defaultRemotePath?: string }) => Promise<void>;
   deleteConnection: (id: string) => Promise<void>;
 }
 
@@ -39,6 +45,8 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
   sessionId: null,
   status: { status: 'disconnected' },
   savedConnections: [],
+  pendingDefaultLocalPath: null,
+  pendingDefaultRemotePath: null,
 
   setField: (field, value) => set({ [field]: value }),
   setProtocol: (protocol) => {
@@ -56,7 +64,10 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
     password: '',
     privateKey: '',
     passphrase: '',
+    pendingDefaultLocalPath: conn.defaultLocalPath ?? null,
+    pendingDefaultRemotePath: conn.defaultRemotePath ?? null,
   }),
+  clearPendingDefaults: () => set({ pendingDefaultLocalPath: null, pendingDefaultRemotePath: null }),
 
   connect: async () => {
     const { host, port, protocol, username, password, privateKey, passphrase } = get();
@@ -90,7 +101,12 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
         headers: sessionId ? { 'x-session-id': sessionId } : {},
       });
     } catch { /* ignore */ }
-    set({ status: { status: 'disconnected' }, sessionId: null });
+    set({
+      status: { status: 'disconnected' },
+      sessionId: null,
+      pendingDefaultLocalPath: null,
+      pendingDefaultRemotePath: null,
+    });
   },
 
   fetchConnections: async () => {
@@ -101,13 +117,17 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
     } catch { /* ignore */ }
   },
 
-  saveConnection: async (name) => {
+  saveConnection: async (name, opts) => {
     const { host, port, protocol, username, password, privateKey } = get();
     try {
       await fetch('/api/connections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, host, port, protocol, username, password, privateKey }),
+        body: JSON.stringify({
+          name, host, port, protocol, username, password, privateKey,
+          defaultLocalPath: opts?.defaultLocalPath ?? '',
+          defaultRemotePath: opts?.defaultRemotePath ?? '',
+        }),
       });
       get().fetchConnections();
     } catch { /* ignore */ }

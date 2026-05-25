@@ -1,4 +1,5 @@
 import { useConnectionStore } from '@/stores/connectionStore';
+import { useLocalPanel, useRemotePanel } from '@/stores/panelStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -22,6 +23,8 @@ export function ConnectionBar() {
 
   const [showKeyDialog, setShowKeyDialog] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const localCurrentPath = useLocalPanel((s) => s.currentPath);
+  const remoteCurrentPath = useRemotePanel((s) => s.currentPath);
 
   useEffect(() => {
     fetchConnections();
@@ -35,10 +38,10 @@ export function ConnectionBar() {
   };
 
   return (
-    <header className="flex items-center gap-2 border-b bg-card px-4 py-2">
-      <div className="flex items-center gap-2 pr-2 shrink-0 select-none">
-        <Logo size={24} />
-        <span className="hidden md:inline text-sm font-semibold tracking-tight">Web FTP Client</span>
+    <header className="flex items-center gap-2 border-b border-border bg-card px-4 py-2.5">
+      <div className="flex items-center gap-2 pr-3 shrink-0 select-none">
+        <Logo size={28} />
+        <span className="hidden md:inline text-sm font-semibold tracking-tight text-foreground">Web FTP Client</span>
       </div>
 
       <Select value={protocol} onValueChange={(v) => setProtocol(v as Protocol)}>
@@ -108,7 +111,7 @@ export function ConnectionBar() {
             </DialogHeader>
             <div className="space-y-3">
               <textarea
-                className="w-full h-48 bg-background border rounded-md p-3 text-xs font-mono resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full h-48 bg-card border border-border rounded-sm p-3 text-xs font-mono text-foreground resize-none transition-[border-color,box-shadow] focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 placeholder="Paste your private key here (PEM format)&#10;&#10;-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
                 value={privateKey}
                 onChange={(e) => setField('privateKey', e.target.value)}
@@ -198,7 +201,12 @@ export function ConnectionBar() {
       <SaveConnectionDialog
         open={showSaveDialog}
         defaultName={`${host}:${port}`}
-        onConfirm={(name) => { saveConnection(name); setShowSaveDialog(false); }}
+        defaultLocalPath={localCurrentPath}
+        defaultRemotePath={remoteCurrentPath}
+        onConfirm={(name, opts) => {
+          saveConnection(name, opts);
+          setShowSaveDialog(false);
+        }}
         onCancel={() => setShowSaveDialog(false)}
       />
     </header>

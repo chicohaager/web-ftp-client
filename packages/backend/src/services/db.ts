@@ -40,10 +40,17 @@ export function getDb(appDataDir: string): Database.Database {
     );
   `);
 
-  // Migration: add private_key column if not exists
+  // Migrations — additive only, idempotent
   const columns = db.prepare("PRAGMA table_info(connections)").all() as Array<{ name: string }>;
-  if (!columns.find(c => c.name === 'private_key')) {
+  const colNames = new Set(columns.map(c => c.name));
+  if (!colNames.has('private_key')) {
     db.exec("ALTER TABLE connections ADD COLUMN private_key TEXT NOT NULL DEFAULT ''");
+  }
+  if (!colNames.has('default_local_path')) {
+    db.exec("ALTER TABLE connections ADD COLUMN default_local_path TEXT NOT NULL DEFAULT ''");
+  }
+  if (!colNames.has('default_remote_path')) {
+    db.exec("ALTER TABLE connections ADD COLUMN default_remote_path TEXT NOT NULL DEFAULT ''");
   }
 
   return db;

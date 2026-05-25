@@ -11,6 +11,8 @@ export interface ConnectionConfig {
   username: string;
   hasPrivateKey?: boolean;
   lastUsed?: string; // ISO 8601
+  defaultLocalPath?: string;  // local pane jumps here on connect
+  defaultRemotePath?: string; // remote pane jumps here on connect
 }
 
 export interface ConnectRequest {
