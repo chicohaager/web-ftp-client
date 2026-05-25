@@ -27,11 +27,12 @@ filesRouter.get('/list', async (req, res) => {
     const files: FileItem[] = await Promise.all(
       entries.map(async (entry) => {
         const entryPath = path.join(fullPath, entry.name);
-        let stat;
+        let stat: { size: number; mtime: Date; mode: number; uid: number; gid: number };
         try {
-          stat = await fs.stat(entryPath);
+          const real = await fs.stat(entryPath);
+          stat = { size: real.size, mtime: real.mtime, mode: real.mode, uid: real.uid, gid: real.gid };
         } catch {
-          stat = { size: 0, mtime: new Date(), mode: 0 };
+          stat = { size: 0, mtime: new Date(), mode: 0, uid: 0, gid: 0 };
         }
         return {
           id: fileId(requestedPath, entry.name),
@@ -40,6 +41,10 @@ filesRouter.get('/list', async (req, res) => {
           size: stat.size,
           modified: stat.mtime.toISOString(),
           permissions: (stat.mode & 0o777).toString(8),
+          // Numeric uid/gid only — resolving to names would require reading
+          // /etc/passwd per entry which isn't worth it for the in-app view.
+          owner: String(stat.uid),
+          group: String(stat.gid),
         };
       })
     );

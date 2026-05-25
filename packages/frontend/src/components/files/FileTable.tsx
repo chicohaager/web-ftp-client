@@ -12,20 +12,31 @@ interface FileTableProps {
   sortColumn: 'name' | 'size' | 'modified';
   sortDirection: 'asc' | 'desc';
   loading: boolean;
+  showDetails: boolean;
   onSelect: (id: string, ctrl: boolean, shift: boolean) => void;
   onSort: (column: 'name' | 'size' | 'modified') => void;
   onOpen: (file: FileItem) => void;
 }
 
+const COLS_BASE = 'grid-cols-[20px_1fr_110px_80px_140px]';
+const COLS_DETAILS = 'grid-cols-[20px_1fr_110px_80px_140px_75px_140px]';
+
+function ownerGroup(file: FileItem): string {
+  if (!file.owner && !file.group) return '';
+  return `${file.owner ?? '-'}:${file.group ?? '-'}`;
+}
+
 export function FileTable({
-  files, selectedIds, sortColumn, sortDirection, loading, onSelect, onSort, onOpen,
+  files, selectedIds, sortColumn, sortDirection, loading, showDetails,
+  onSelect, onSort, onOpen,
 }: FileTableProps) {
   const SortIcon = sortDirection === 'asc' ? ChevronUp : ChevronDown;
+  const cols = showDetails ? COLS_DETAILS : COLS_BASE;
 
   return (
     <ScrollArea className="h-full">
       {/* Header */}
-      <div className="grid grid-cols-[20px_1fr_110px_80px_140px] gap-1 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-b border-border bg-secondary sticky top-0 z-10 select-none">
+      <div className={cn('grid gap-1 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-b border-border bg-secondary sticky top-0 z-10 select-none', cols)}>
         <div />
         <button className="flex items-center gap-1 text-left hover:text-foreground transition-colors" onClick={() => onSort('name')}>
           Name {sortColumn === 'name' && <SortIcon className="w-3 h-3" />}
@@ -37,6 +48,12 @@ export function FileTable({
         <button className="flex items-center gap-1 justify-end hover:text-foreground transition-colors" onClick={() => onSort('modified')}>
           Modified {sortColumn === 'modified' && <SortIcon className="w-3 h-3" />}
         </button>
+        {showDetails && (
+          <>
+            <div className="text-right">Mode</div>
+            <div className="text-right">Owner</div>
+          </>
+        )}
       </div>
 
       {/* Rows */}
@@ -61,10 +78,11 @@ export function FileTable({
               <div
                 key={file.id}
                 className={cn(
-                  'grid grid-cols-[20px_1fr_110px_80px_140px] gap-1 px-3 items-center cursor-default select-none',
+                  'grid gap-1 px-3 items-center cursor-default select-none',
                   'h-[30px] text-[14px] leading-tight border-b border-border/40',
                   'hover:bg-secondary transition-colors duration-75',
                   isSelected && 'bg-accent text-accent-foreground hover:bg-accent',
+                  cols,
                 )}
                 onClick={(e) => onSelect(file.id, e.ctrlKey || e.metaKey, e.shiftKey)}
                 onDoubleClick={() => onOpen(file)}
@@ -81,6 +99,16 @@ export function FileTable({
                 <span className="text-right text-muted-foreground tabular-nums">
                   {formatDate(file.modified)}
                 </span>
+                {showDetails && (
+                  <>
+                    <span className="text-right text-muted-foreground font-mono text-[12px] tabular-nums">
+                      {file.permissions || '-'}
+                    </span>
+                    <span className="text-right text-muted-foreground font-mono text-[12px] truncate">
+                      {ownerGroup(file) || '-'}
+                    </span>
+                  </>
+                )}
               </div>
             );
           })}

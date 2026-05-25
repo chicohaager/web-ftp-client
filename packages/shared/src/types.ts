@@ -42,6 +42,8 @@ export interface FileItem {
   size: number;
   modified: string; // ISO 8601
   permissions: string; // e.g. "rwxr-xr-x" or "755"
+  owner?: string;      // user name or numeric uid; protocol-dependent
+  group?: string;      // group name or numeric gid; protocol-dependent
 }
 
 export interface ListResponse {
