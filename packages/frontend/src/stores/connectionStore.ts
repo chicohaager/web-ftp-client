@@ -94,10 +94,20 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
       if (data.ok) {
         set({ status: data.data, sessionId: data.data.sessionId ?? null });
       } else {
-        set({ status: { status: 'error', error: data.error } });
+        // Drop any pending bookmark defaults on failure so they don't latch
+        // onto the next successful connection (which may be a different host).
+        set({
+          status: { status: 'error', error: data.error },
+          pendingDefaultLocalPath: null,
+          pendingDefaultRemotePath: null,
+        });
       }
     } catch (err) {
-      set({ status: { status: 'error', error: err instanceof Error ? err.message : 'Connection failed' } });
+      set({
+        status: { status: 'error', error: err instanceof Error ? err.message : 'Connection failed' },
+        pendingDefaultLocalPath: null,
+        pendingDefaultRemotePath: null,
+      });
     }
   },
 

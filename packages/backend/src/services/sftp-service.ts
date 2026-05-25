@@ -109,9 +109,20 @@ export class SftpService {
     return await this.client.cwd();
   }
 
-  // Server-side copy (used by edit-with-backup). ssh2-sftp-client's rcopy
-  // streams on the server, no client round-trip.
+  // Server-side copy (used by edit-with-backup). rcopy refuses to overwrite
+  // an existing destination, so we delete first; the edit endpoint
+  // guarantees the .bak is intended to be replaced on each save. Delete
+  // failures other than "file not found" are surfaced.
   async copy(srcPath: string, dstPath: string): Promise<void> {
+    try {
+      await this.client.delete(dstPath);
+    } catch (err) {
+      const code = (err as { code?: number; message?: string }).code;
+      const msg = (err as { message?: string }).message ?? '';
+      // ssh2-sftp-client surfaces "No such file" as SFTP_STATUS_CODE 2
+      // (or the string in older versions). Anything else is a real error.
+      if (code !== 2 && !/no such file|does not exist/i.test(msg)) throw err;
+    }
     await this.client.rcopy(srcPath, dstPath);
   }
 
@@ -131,7 +142,11 @@ export class SftpService {
     try {
       await this.client.get(remotePath, buf);
     } catch (err) {
-      if (!buf.truncated && buf.total === 0) throw err;
+      // Only swallow the destroy-on-cap throw; any other error (partial
+      // download due to network drop, server reset) must surface so the
+      // caller doesn't get a silently truncated buffer presented as a
+      // complete read.
+      if (!buf.truncated) throw err;
     }
     return {
       content: buf.asString(),
