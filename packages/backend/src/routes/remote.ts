@@ -12,7 +12,13 @@ import { PREVIEW_MAX_BYTES, isPreviewable } from '../lib/preview-config.js';
 export const remoteRouter: RouterType = Router();
 
 // Session-based connections with timestamps
-const sessions = new Map<string, { service: FtpService | SftpService; status: ConnectionStatus; lastUsed: number }>();
+interface RemoteSession {
+  service: FtpService | SftpService;
+  status: ConnectionStatus;
+  lastUsed: number;
+  readOnly: boolean;
+}
+const sessions = new Map<string, RemoteSession>();
 
 // Cleanup stale sessions every 5 minutes
 setInterval(() => {
@@ -26,7 +32,7 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-function getSession(sessionId?: string): { service: FtpService | SftpService; status: ConnectionStatus; lastUsed: number } | null {
+function getSession(sessionId?: string): RemoteSession | null {
   if (!sessionId) {
     for (const session of sessions.values()) {
       if (session.service.isConnected()) {
@@ -39,6 +45,17 @@ function getSession(sessionId?: string): { service: FtpService | SftpService; st
   const session = sessions.get(sessionId);
   if (session) session.lastUsed = Date.now();
   return session ?? null;
+}
+
+// Returns true if writable; otherwise sends 403 and returns false.
+// Call as `if (!requireWritable(session, res)) return;` at the top of any
+// mutating route.
+function requireWritable(session: RemoteSession, res: import('express').Response): boolean {
+  if (session.readOnly) {
+    res.status(403).json({ ok: false, error: 'Connection is in read-only mode' } satisfies ApiResponse);
+    return false;
+  }
+  return true;
 }
 
 remoteRouter.post('/connect', async (req, res) => {
@@ -62,8 +79,9 @@ remoteRouter.post('/connect', async (req, res) => {
     }
 
     const serverInfo = await service.connect(config);
-    const status: ConnectionStatus = { status: 'connected', serverInfo, sessionId };
-    sessions.set(sessionId, { service, status, lastUsed: Date.now() });
+    const readOnly = !!config.readOnly;
+    const status: ConnectionStatus = { status: 'connected', serverInfo, sessionId, readOnly };
+    sessions.set(sessionId, { service, status, lastUsed: Date.now(), readOnly });
 
     console.log(`[CONNECT] Success: ${serverInfo}`);
     const response: ApiResponse<ConnectionStatus> = { ok: true, data: status };
@@ -107,6 +125,9 @@ remoteRouter.get('/status', (req, res) => {
   const sessionId = req.headers['x-session-id'] as string | undefined;
   const session = getSession(sessionId);
   const status: ConnectionStatus = session?.status ?? { status: 'disconnected' };
+  // Status's readOnly mirrors session.readOnly so the client can reflect the
+  // gate without a separate round-trip.
+  if (session) status.readOnly = session.readOnly;
   const response: ApiResponse<ConnectionStatus> = { ok: true, data: status };
   res.json(response);
 });
@@ -135,6 +156,7 @@ remoteRouter.post('/mkdir', async (req, res) => {
     res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
     return;
   }
+  if (!requireWritable(session, res)) return;
   try {
     const { path: dirPath, name } = req.body;
     const fullPath = path.posix.join(dirPath, name);
@@ -155,6 +177,7 @@ remoteRouter.post('/rename', async (req, res) => {
     res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
     return;
   }
+  if (!requireWritable(session, res)) return;
   try {
     const { path: dirPath, oldName, newName } = req.body;
     const oldFullPath = path.posix.join(dirPath, oldName);
@@ -176,6 +199,7 @@ remoteRouter.delete('/delete', async (req, res) => {
     res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
     return;
   }
+  if (!requireWritable(session, res)) return;
   try {
     const { path: dirPath, names, types } = req.body;
     for (let i = 0; i < names.length; i++) {
@@ -231,6 +255,7 @@ remoteRouter.put('/edit', async (req, res) => {
     res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
     return;
   }
+  if (!requireWritable(session, res)) return;
   try {
     const { path: filePath, content } = req.body as { path?: string; content?: string };
     if (typeof filePath !== 'string' || typeof content !== 'string') {
@@ -320,6 +345,7 @@ remoteRouter.post('/upload', async (req, res) => {
     res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
     return;
   }
+  if (!requireWritable(session, res)) return;
   try {
     const { localPath, remotePath, files } = req.body;
     const dataDir: string = req.app.locals.dataDir;

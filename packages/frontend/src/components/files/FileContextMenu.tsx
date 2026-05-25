@@ -14,6 +14,10 @@ interface FileContextMenuProps {
   isConnected: boolean;
   canPreview: boolean;
   canEdit: boolean;
+  // When true, hide entries that would mutate this pane's filesystem
+  // (Delete, Rename, NewFolder, Upload). Transfer (download for remote /
+  // upload for local) is gated by the caller via the transfer entry.
+  canMutate: boolean;
   onPreview: () => void;
   onEdit: () => void;
   onTransfer: () => void;
@@ -26,7 +30,8 @@ interface FileContextMenuProps {
 
 export function FileContextMenu({
   children, panelType, hasSelection, selectionCount, isConnected,
-  canPreview, canEdit, onPreview, onEdit, onTransfer, onRename, onDelete, onNewFolder, onCopyPath, onRefresh,
+  canPreview, canEdit, canMutate,
+  onPreview, onEdit, onTransfer, onRename, onDelete, onNewFolder, onCopyPath, onRefresh,
 }: FileContextMenuProps) {
   const TransferIcon = panelType === 'local' ? Upload : Download;
   const transferLabel = panelType === 'local' ? 'Upload to Remote' : 'Download to Local';
@@ -57,13 +62,13 @@ export function FileContextMenu({
             <ContextMenuSeparator />
           </>
         )}
-        {hasSelection && selectionCount === 1 && (
+        {hasSelection && selectionCount === 1 && canMutate && (
           <ContextMenuItem onClick={onRename}>
             <Pencil className="w-4 h-4 mr-2" />
             Rename
           </ContextMenuItem>
         )}
-        {hasSelection && (
+        {hasSelection && canMutate && (
           <>
             <ContextMenuItem onClick={onDelete} className="text-destructive">
               <Trash2 className="w-4 h-4 mr-2" />
@@ -78,10 +83,12 @@ export function FileContextMenu({
             Copy Path
           </ContextMenuItem>
         )}
-        <ContextMenuItem onClick={onNewFolder}>
-          <FolderPlus className="w-4 h-4 mr-2" />
-          New Folder
-        </ContextMenuItem>
+        {canMutate && (
+          <ContextMenuItem onClick={onNewFolder}>
+            <FolderPlus className="w-4 h-4 mr-2" />
+            New Folder
+          </ContextMenuItem>
+        )}
         <ContextMenuItem onClick={onRefresh}>
           <RefreshCw className="w-4 h-4 mr-2" />
           Refresh

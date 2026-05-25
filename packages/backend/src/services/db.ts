@@ -52,6 +52,9 @@ export function getDb(appDataDir: string): Database.Database {
   if (!colNames.has('default_remote_path')) {
     db.exec("ALTER TABLE connections ADD COLUMN default_remote_path TEXT NOT NULL DEFAULT ''");
   }
+  if (!colNames.has('read_only')) {
+    db.exec("ALTER TABLE connections ADD COLUMN read_only INTEGER NOT NULL DEFAULT 0");
+  }
 
   return db;
 }

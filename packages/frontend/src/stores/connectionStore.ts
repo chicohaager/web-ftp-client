@@ -9,6 +9,10 @@ interface ConnectionState {
   password: string;
   privateKey: string;
   passphrase: string;
+  // Read-only intent for the next connect; sourced from a loaded saved-connection
+  // or the manual checkbox, sent in the /connect body, and echoed back from
+  // status.readOnly to keep the UI in sync.
+  readOnly: boolean;
   sessionId: string | null;
   status: ConnectionStatus;
   savedConnections: ConnectionConfig[];
@@ -21,6 +25,7 @@ interface ConnectionState {
   setField: (field: string, value: string | number) => void;
   setProtocol: (protocol: Protocol) => void;
   setStatus: (status: ConnectionStatus) => void;
+  setReadOnly: (value: boolean) => void;
   setSavedConnections: (connections: ConnectionConfig[]) => void;
   loadSavedConnection: (conn: ConnectionConfig) => void;
   clearPendingDefaults: () => void;
@@ -28,7 +33,7 @@ interface ConnectionState {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   fetchConnections: () => Promise<void>;
-  saveConnection: (name: string, opts?: { defaultLocalPath?: string; defaultRemotePath?: string }) => Promise<void>;
+  saveConnection: (name: string, opts?: { defaultLocalPath?: string; defaultRemotePath?: string; readOnly?: boolean }) => Promise<void>;
   deleteConnection: (id: string) => Promise<void>;
 }
 
@@ -42,6 +47,7 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
   password: '',
   privateKey: '',
   passphrase: '',
+  readOnly: false,
   sessionId: null,
   status: { status: 'disconnected' },
   savedConnections: [],
@@ -55,6 +61,7 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
     set({ protocol, ...(portIsDefault ? { port: DEFAULT_PORTS[protocol] } : {}) });
   },
   setStatus: (status) => set({ status }),
+  setReadOnly: (value) => set({ readOnly: value }),
   setSavedConnections: (connections) => set({ savedConnections: connections }),
   loadSavedConnection: (conn) => set({
     host: conn.host,
@@ -64,16 +71,17 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
     password: '',
     privateKey: '',
     passphrase: '',
+    readOnly: !!conn.readOnly,
     pendingDefaultLocalPath: conn.defaultLocalPath ?? null,
     pendingDefaultRemotePath: conn.defaultRemotePath ?? null,
   }),
   clearPendingDefaults: () => set({ pendingDefaultLocalPath: null, pendingDefaultRemotePath: null }),
 
   connect: async () => {
-    const { host, port, protocol, username, password, privateKey, passphrase } = get();
+    const { host, port, protocol, username, password, privateKey, passphrase, readOnly } = get();
     set({ status: { status: 'connecting' } });
     try {
-      const body: Record<string, unknown> = { host, port, protocol, username, password };
+      const body: Record<string, unknown> = { host, port, protocol, username, password, readOnly };
       if (privateKey) body.privateKey = privateKey;
       if (passphrase) body.passphrase = passphrase;
 
@@ -118,7 +126,7 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
   },
 
   saveConnection: async (name, opts) => {
-    const { host, port, protocol, username, password, privateKey } = get();
+    const { host, port, protocol, username, password, privateKey, readOnly } = get();
     try {
       await fetch('/api/connections', {
         method: 'POST',
@@ -127,6 +135,7 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
           name, host, port, protocol, username, password, privateKey,
           defaultLocalPath: opts?.defaultLocalPath ?? '',
           defaultRemotePath: opts?.defaultRemotePath ?? '',
+          readOnly: opts?.readOnly ?? readOnly,
         }),
       });
       get().fetchConnections();

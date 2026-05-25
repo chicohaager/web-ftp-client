@@ -9,11 +9,11 @@ export const connectionsRouter: RouterType = Router();
 connectionsRouter.get('/', (_req, res) => {
   const db = getDb(res.app.locals.appData);
   const rows = db.prepare(
-    'SELECT id, name, host, port, protocol, username, private_key, last_used, default_local_path, default_remote_path FROM connections ORDER BY last_used DESC'
+    'SELECT id, name, host, port, protocol, username, private_key, last_used, default_local_path, default_remote_path, read_only FROM connections ORDER BY last_used DESC'
   ).all() as Array<{
     id: string; name: string; host: string; port: number; protocol: string;
     username: string; private_key: string; last_used: string | null;
-    default_local_path: string; default_remote_path: string;
+    default_local_path: string; default_remote_path: string; read_only: number;
   }>;
   const connections: ConnectionConfig[] = rows.map(r => ({
     id: r.id,
@@ -26,12 +26,13 @@ connectionsRouter.get('/', (_req, res) => {
     lastUsed: r.last_used ?? undefined,
     defaultLocalPath: r.default_local_path || undefined,
     defaultRemotePath: r.default_remote_path || undefined,
+    readOnly: r.read_only === 1,
   }));
   res.json({ ok: true, data: connections } satisfies ApiResponse<ConnectionConfig[]>);
 });
 
 connectionsRouter.post('/', (req, res) => {
-  const { name, host, port, protocol, username, password, privateKey, defaultLocalPath, defaultRemotePath } = req.body;
+  const { name, host, port, protocol, username, password, privateKey, defaultLocalPath, defaultRemotePath, readOnly } = req.body;
 
   if (!name || !host || !protocol) {
     res.status(400).json({ ok: false, error: 'Missing required fields: name, host, protocol' } satisfies ApiResponse);
@@ -52,11 +53,12 @@ connectionsRouter.post('/', (req, res) => {
   const encryptedKey = privateKey ? encrypt(privateKey) : '';
 
   db.prepare(
-    'INSERT INTO connections (id, name, host, port, protocol, username, password, private_key, default_local_path, default_remote_path, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO connections (id, name, host, port, protocol, username, password, private_key, default_local_path, default_remote_path, read_only, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(
     id, name, host, port, protocol, username || 'anonymous',
     encryptedPassword, encryptedKey,
     defaultLocalPath ?? '', defaultRemotePath ?? '',
+    readOnly ? 1 : 0,
     new Date().toISOString(),
   );
 
@@ -64,7 +66,7 @@ connectionsRouter.post('/', (req, res) => {
 });
 
 connectionsRouter.put('/:id', (req, res) => {
-  const { name, host, port, protocol, username, password, privateKey, defaultLocalPath, defaultRemotePath } = req.body;
+  const { name, host, port, protocol, username, password, privateKey, defaultLocalPath, defaultRemotePath, readOnly } = req.body;
   const db = getDb(res.app.locals.appData);
 
   const updates: string[] = [];
@@ -79,6 +81,7 @@ connectionsRouter.put('/:id', (req, res) => {
   if (privateKey !== undefined) { updates.push('private_key=?'); values.push(encrypt(privateKey)); }
   if (defaultLocalPath !== undefined) { updates.push('default_local_path=?'); values.push(defaultLocalPath); }
   if (defaultRemotePath !== undefined) { updates.push('default_remote_path=?'); values.push(defaultRemotePath); }
+  if (readOnly !== undefined) { updates.push('read_only=?'); values.push(readOnly ? 1 : 0); }
 
   updates.push('last_used=?');
   values.push(new Date().toISOString());

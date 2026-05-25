@@ -36,6 +36,10 @@ interface FilePanelProps {
   searchFilter: string;
   disabled?: boolean;
   isConnected: boolean;
+  // True if mutating ops on this pane should be blocked. For local panes this
+  // is wired to "session is read-only" because upload from local mutates the
+  // remote side. For the remote pane it's just the session flag.
+  isReadOnly?: boolean;
   onSelect: (id: string, ctrl: boolean, shift: boolean) => void;
   onSort: (column: 'name' | 'size' | 'modified') => void;
   onSearchFilter: (filter: string) => void;
@@ -54,7 +58,7 @@ interface FilePanelProps {
 
 export function FilePanel({
   panelType, label, currentPath, files, filteredFiles, loading, selectedIds,
-  sortColumn, sortDirection, searchFilter, disabled, isConnected,
+  sortColumn, sortDirection, searchFilter, disabled, isConnected, isReadOnly,
   onSelect, onSort, onSearchFilter, onNavigateTo, onGoBack, onGoForward,
   onGoUp, onRefresh, onMkdir, onDelete, onRename, onTransfer, onDropReceive, getSelectedFiles,
 }: FilePanelProps) {
@@ -84,9 +88,13 @@ export function FilePanel({
   const previewCandidate = selectedFiles.length === 1 && selectedFiles[0].type === 'file' && isPreviewable(selectedFiles[0].name)
     ? selectedFiles[0]
     : null;
-  // Edit requires a previewable file AND (for remote) an active connection.
-  // Local edit works any time.
-  const editCandidate = previewCandidate && (panelType === 'local' || isConnected) ? previewCandidate : null;
+  // Edit requires a previewable file, an active connection (for remote), and
+  // not in read-only mode (since edit mutates).
+  const editCandidate = previewCandidate
+    && (panelType === 'local' || isConnected)
+    && !isReadOnly
+    ? previewCandidate
+    : null;
 
   const [editState, setEditState] = useState<{
     open: boolean;
@@ -232,6 +240,9 @@ export function FilePanel({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    // Drop onto Remote means upload from Local → mutates remote → blocked in
+    // read-only mode. Drop onto Local is always a download from Remote.
+    if (panelType === 'remote' && isReadOnly) return;
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'));
       if (data.source !== panelType) {
@@ -267,6 +278,7 @@ export function FilePanel({
       isConnected={isConnected}
       canPreview={previewCandidate !== null}
       canEdit={editCandidate !== null}
+      canMutate={!isReadOnly}
       onPreview={handlePreview}
       onEdit={handleEdit}
       onTransfer={handleTransfer}
@@ -349,15 +361,23 @@ export function FilePanel({
               size="icon"
               className="h-7 w-7"
               onClick={handleTransfer}
-              title={panelType === 'local' ? 'Upload' : 'Download'}
+              // Local→Remote upload is the only direction blocked by read-only.
+              disabled={panelType === 'local' && isReadOnly}
+              title={
+                panelType === 'local'
+                  ? (isReadOnly ? 'Upload blocked — connection is read-only' : 'Upload')
+                  : 'Download'
+              }
             >
               {panelType === 'local' ? <Upload className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
             </Button>
           )}
 
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowNewFolderDialog(true)} title="New Folder">
-            <FolderPlus className="w-3.5 h-3.5" />
-          </Button>
+          {!isReadOnly && (
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowNewFolderDialog(true)} title="New Folder">
+              <FolderPlus className="w-3.5 h-3.5" />
+            </Button>
+          )}
           <Button
             variant={showDetails ? 'secondary' : 'ghost'}
             size="icon"
