@@ -11,7 +11,7 @@ export function StatusBar() {
   const queued = items.filter(t => t.status === 'queued').length;
 
   return (
-    <footer className="flex items-center gap-4 border-t bg-card px-4 text-[11px] text-muted-foreground">
+    <footer className="flex items-center gap-4 border-t bg-card px-4 text-[12px] text-muted-foreground">
       <div className="flex items-center gap-1.5">
         <Circle
           className={cn(

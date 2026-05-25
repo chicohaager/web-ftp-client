@@ -25,7 +25,7 @@ export function FileTable({
   return (
     <ScrollArea className="h-full">
       {/* Header */}
-      <div className="grid grid-cols-[20px_1fr_100px_70px_130px] gap-1 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground border-b border-border bg-secondary sticky top-0 z-10 select-none">
+      <div className="grid grid-cols-[20px_1fr_110px_80px_140px] gap-1 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-b border-border bg-secondary sticky top-0 z-10 select-none">
         <div />
         <button className="flex items-center gap-1 text-left hover:text-foreground transition-colors" onClick={() => onSort('name')}>
           Name {sortColumn === 'name' && <SortIcon className="w-3 h-3" />}
@@ -61,8 +61,8 @@ export function FileTable({
               <div
                 key={file.id}
                 className={cn(
-                  'grid grid-cols-[20px_1fr_100px_70px_130px] gap-1 px-3 items-center cursor-default select-none',
-                  'h-[28px] text-[13px] leading-tight border-b border-border/40',
+                  'grid grid-cols-[20px_1fr_110px_80px_140px] gap-1 px-3 items-center cursor-default select-none',
+                  'h-[30px] text-[14px] leading-tight border-b border-border/40',
                   'hover:bg-secondary transition-colors duration-75',
                   isSelected && 'bg-accent text-accent-foreground hover:bg-accent',
                 )}
@@ -70,7 +70,7 @@ export function FileTable({
                 onDoubleClick={() => onOpen(file)}
               >
                 <Icon
-                  className="w-[15px] h-[15px]"
+                  className="w-4 h-4"
                   style={{ color: `hsl(var(${colorVar}))` }}
                 />
                 <span className="truncate font-normal">{file.name}</span>

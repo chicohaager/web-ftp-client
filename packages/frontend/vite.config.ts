@@ -12,10 +12,16 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:3000',
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      // WS proxy: target is http:// (http-proxy handles the upgrade), ws:true
+      // tells the proxy to forward the upgrade request to the backend's ws path
       '/ws': {
-        target: 'ws://localhost:3000',
+        target: 'http://localhost:3000',
         ws: true,
+        changeOrigin: true,
       },
     },
   },
