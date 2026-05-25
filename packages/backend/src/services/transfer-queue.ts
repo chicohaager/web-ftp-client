@@ -16,6 +16,26 @@ export class TransferQueue extends EventEmitter {
     return [...this.queue];
   }
 
+  findById(id: string): TransferItem | undefined {
+    return this.queue.find(t => t.id === id);
+  }
+
+  // Re-queue a previously failed item so executeTransfer can pick it up again.
+  // Returns the reset item, or null if the id is unknown or the item is not in
+  // a re-runnable state (only 'failed' qualifies — re-queueing an active or
+  // completed transfer is a no-op).
+  retry(id: string): TransferItem | null {
+    const item = this.queue.find(t => t.id === id);
+    if (!item || item.status !== 'failed') return null;
+    item.status = 'queued';
+    item.transferredBytes = 0;
+    item.speed = 0;
+    item.startTime = null;
+    item.error = null;
+    this.emitProgress(item);
+    return item;
+  }
+
   enqueue(
     fileName: string,
     sourcePath: string,

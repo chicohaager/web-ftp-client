@@ -3,7 +3,7 @@ import { FtpService } from '../services/ftp-service.js';
 import { SftpService } from '../services/sftp-service.js';
 import { transferQueue } from '../services/transfer-queue.js';
 import { safePath, safeFileName } from '../lib/path-guard.js';
-import type { ConnectRequest, ApiResponse, ListResponse, ConnectionStatus } from '@web-ftp-client/shared';
+import type { ConnectRequest, ApiResponse, ListResponse, ConnectionStatus, TransferItem } from '@web-ftp-client/shared';
 import { v4 as uuid } from 'uuid';
 import fs from 'fs/promises';
 import path from 'path';
@@ -331,4 +331,23 @@ remoteRouter.delete('/transfers/:id', (req, res) => {
   } else {
     res.status(404).json({ ok: false, error: 'Transfer not found' } satisfies ApiResponse);
   }
+});
+
+remoteRouter.post('/transfers/:id/retry', (req, res) => {
+  const session = getSession(req.headers['x-session-id'] as string | undefined);
+  if (!session || !session.service.isConnected()) {
+    res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
+    return;
+  }
+  const item = transferQueue.retry(req.params.id);
+  if (!item) {
+    res.status(404).json({ ok: false, error: 'Transfer not found or not in failed state' } satisfies ApiResponse);
+    return;
+  }
+  const dataDir: string = req.app.locals.dataDir;
+  console.log(`[TRANSFER] Retry: ${item.fileName}`);
+  transferQueue.executeTransfer(item, session.service, dataDir).catch((err) => {
+    console.error(`[TRANSFER] Retry unhandled: ${err instanceof Error ? err.message : err}`);
+  });
+  res.json({ ok: true, data: item } satisfies ApiResponse<TransferItem>);
 });
