@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import {
   ArrowLeft, ArrowRight, ArrowUp, RefreshCw, FolderPlus, Unplug,
-  Upload, Download, Search,
+  Upload, Download, Search, Columns3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/stores/uiStore';
@@ -58,7 +58,7 @@ export function FilePanel({
   onSelect, onSort, onSearchFilter, onNavigateTo, onGoBack, onGoForward,
   onGoUp, onRefresh, onMkdir, onDelete, onRename, onTransfer, onDropReceive, getSelectedFiles,
 }: FilePanelProps) {
-  const { focusedPanel, setFocusedPanel } = useUiStore();
+  const { focusedPanel, setFocusedPanel, showDetails, toggleShowDetails } = useUiStore();
   const isFocused = focusedPanel === panelType;
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -358,6 +358,15 @@ export function FilePanel({
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowNewFolderDialog(true)} title="New Folder">
             <FolderPlus className="w-3.5 h-3.5" />
           </Button>
+          <Button
+            variant={showDetails ? 'secondary' : 'ghost'}
+            size="icon"
+            className="h-7 w-7"
+            onClick={toggleShowDetails}
+            title={showDetails ? 'Hide permissions/owner columns' : 'Show permissions/owner columns'}
+          >
+            <Columns3 className="w-3.5 h-3.5" />
+          </Button>
         </div>
 
         {/* File Table */}
@@ -368,6 +377,7 @@ export function FilePanel({
             sortColumn={sortColumn}
             sortDirection={sortDirection}
             loading={loading}
+            showDetails={showDetails}
             onSelect={onSelect}
             onSort={onSort}
             onOpen={handleOpen}

@@ -54,7 +54,11 @@ export class FtpService {
       type: entry.isDirectory ? 'directory' as const : entry.isSymbolicLink ? 'symlink' as const : 'file' as const,
       size: entry.size,
       modified: entry.modifiedAt?.toISOString() ?? new Date().toISOString(),
+      // basic-ftp exposes user/group as strings parsed from LIST output;
+      // many servers omit one or both, in which case they stay undefined.
       permissions: entry.permissions?.toString() ?? '',
+      owner: entry.user || undefined,
+      group: entry.group || undefined,
     })).sort((a, b) => {
       if (a.type === 'directory' && b.type !== 'directory') return -1;
       if (a.type !== 'directory' && b.type === 'directory') return 1;

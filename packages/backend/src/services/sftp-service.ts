@@ -55,14 +55,22 @@ export class SftpService {
 
   async list(remotePath: string): Promise<FileItem[]> {
     const entries = await this.client.list(remotePath);
-    return entries.map((entry) => ({
-      id: fileId(remotePath, entry.name),
-      name: entry.name,
-      type: entry.type === 'd' ? 'directory' as const : entry.type === 'l' ? 'symlink' as const : 'file' as const,
-      size: entry.size,
-      modified: new Date(entry.modifyTime).toISOString(),
-      permissions: entry.rights ? `${entry.rights.user}${entry.rights.group}${entry.rights.other}` : '',
-    })).sort((a, b) => {
+    return entries.map((entry) => {
+      // ssh2-sftp-client returns owner/group as numeric uid/gid (number).
+      // Stringify so the wire format stays uniform with other services.
+      const ownerVal = (entry as unknown as { owner?: number | string }).owner;
+      const groupVal = (entry as unknown as { group?: number | string }).group;
+      return {
+        id: fileId(remotePath, entry.name),
+        name: entry.name,
+        type: entry.type === 'd' ? 'directory' as const : entry.type === 'l' ? 'symlink' as const : 'file' as const,
+        size: entry.size,
+        modified: new Date(entry.modifyTime).toISOString(),
+        permissions: entry.rights ? `${entry.rights.user}${entry.rights.group}${entry.rights.other}` : '',
+        owner: ownerVal !== undefined ? String(ownerVal) : undefined,
+        group: groupVal !== undefined ? String(groupVal) : undefined,
+      };
+    }).sort((a, b) => {
       if (a.type === 'directory' && b.type !== 'directory') return -1;
       if (a.type !== 'directory' && b.type === 'directory') return 1;
       return a.name.localeCompare(b.name);
