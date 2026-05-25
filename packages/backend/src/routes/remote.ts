@@ -58,6 +58,25 @@ function requireWritable(session: RemoteSession, res: import('express').Response
   return true;
 }
 
+// Mutating routes must identify the caller's session explicitly so we never
+// pick a random connected session via the getSession() fallback. Sends 401
+// and returns null when the header is missing or unknown; returns the
+// resolved session otherwise.
+function requireBoundSession(req: import('express').Request, res: import('express').Response): RemoteSession | null {
+  const sessionId = req.headers['x-session-id'] as string | undefined;
+  if (!sessionId) {
+    res.status(401).json({ ok: false, error: 'Missing x-session-id header' } satisfies ApiResponse);
+    return null;
+  }
+  const session = sessions.get(sessionId);
+  if (!session || !session.service.isConnected()) {
+    res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
+    return null;
+  }
+  session.lastUsed = Date.now();
+  return session;
+}
+
 remoteRouter.post('/connect', async (req, res) => {
   try {
     const config: ConnectRequest = req.body;
@@ -151,11 +170,8 @@ remoteRouter.get('/list', async (req, res) => {
 });
 
 remoteRouter.post('/mkdir', async (req, res) => {
-  const session = getSession(req.headers['x-session-id'] as string | undefined);
-  if (!session || !session.service.isConnected()) {
-    res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
-    return;
-  }
+  const session = requireBoundSession(req, res);
+  if (!session) return;
   if (!requireWritable(session, res)) return;
   try {
     const { path: dirPath, name } = req.body;
@@ -172,11 +188,8 @@ remoteRouter.post('/mkdir', async (req, res) => {
 });
 
 remoteRouter.post('/rename', async (req, res) => {
-  const session = getSession(req.headers['x-session-id'] as string | undefined);
-  if (!session || !session.service.isConnected()) {
-    res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
-    return;
-  }
+  const session = requireBoundSession(req, res);
+  if (!session) return;
   if (!requireWritable(session, res)) return;
   try {
     const { path: dirPath, oldName, newName } = req.body;
@@ -194,11 +207,8 @@ remoteRouter.post('/rename', async (req, res) => {
 });
 
 remoteRouter.delete('/delete', async (req, res) => {
-  const session = getSession(req.headers['x-session-id'] as string | undefined);
-  if (!session || !session.service.isConnected()) {
-    res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
-    return;
-  }
+  const session = requireBoundSession(req, res);
+  if (!session) return;
   if (!requireWritable(session, res)) return;
   try {
     const { path: dirPath, names, types } = req.body;
@@ -250,11 +260,8 @@ remoteRouter.get('/preview', async (req, res) => {
 });
 
 remoteRouter.put('/edit', async (req, res) => {
-  const session = getSession(req.headers['x-session-id'] as string | undefined);
-  if (!session || !session.service.isConnected()) {
-    res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
-    return;
-  }
+  const session = requireBoundSession(req, res);
+  if (!session) return;
   if (!requireWritable(session, res)) return;
   try {
     const { path: filePath, content } = req.body as { path?: string; content?: string };
@@ -270,6 +277,22 @@ remoteRouter.put('/edit', async (req, res) => {
     if (!fileName || !isPreviewable(fileName)) {
       res.status(400).json({ ok: false, error: 'File is not text-editable' } satisfies ApiResponse);
       return;
+    }
+
+    // Refuse to overwrite a file larger than our editable cap — preview
+    // truncates beyond 1 MiB, and writing back would silently shrink the
+    // file from N MiB to <= 1 MiB. Probe the size via list() on the parent
+    // directory (works on both protocols).
+    const parentDir = path.posix.dirname(filePath) || '/';
+    try {
+      const entries = await session.service.list(parentDir);
+      const existing = entries.find(e => e.name === fileName);
+      if (existing && existing.size > PREVIEW_MAX_BYTES) {
+        res.status(413).json({ ok: false, error: `Existing remote file is ${existing.size} bytes — refusing to edit beyond ${PREVIEW_MAX_BYTES}` } satisfies ApiResponse);
+        return;
+      }
+    } catch (err) {
+      console.warn(`[REMOTE EDIT] Could not stat existing ${filePath}: ${err instanceof Error ? err.message : err}`);
     }
 
     // Backup first so a write failure leaves the user with a recoverable file.
@@ -340,11 +363,8 @@ remoteRouter.post('/download', async (req, res) => {
 });
 
 remoteRouter.post('/upload', async (req, res) => {
-  const session = getSession(req.headers['x-session-id'] as string | undefined);
-  if (!session || !session.service.isConnected()) {
-    res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
-    return;
-  }
+  const session = requireBoundSession(req, res);
+  if (!session) return;
   if (!requireWritable(session, res)) return;
   try {
     const { localPath, remotePath, files } = req.body;
@@ -428,11 +448,13 @@ remoteRouter.delete('/transfers/:id', (req, res) => {
 });
 
 remoteRouter.post('/transfers/:id/retry', (req, res) => {
-  const session = getSession(req.headers['x-session-id'] as string | undefined);
-  if (!session || !session.service.isConnected()) {
-    res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
-    return;
-  }
+  const session = requireBoundSession(req, res);
+  if (!session) return;
+  // Peek at the item before reset to know whether this retry is a write.
+  // A failed download retry is fine on a read-only session; an upload retry
+  // is a mutation and must respect the gate.
+  const pending = transferQueue.findById(req.params.id);
+  if (pending?.direction === 'upload' && !requireWritable(session, res)) return;
   const item = transferQueue.retry(req.params.id);
   if (!item) {
     res.status(404).json({ ok: false, error: 'Transfer not found or not in failed state' } satisfies ApiResponse);

@@ -183,11 +183,36 @@ filesRouter.put('/edit', async (req, res) => {
       res.status(403).json({ ok: false, error: 'Access denied: path traversal' } satisfies ApiResponse);
       return;
     }
+    const backupPath = `${fullPath}.bak`;
 
-    // .bak alongside original. fs.copyFile is atomic-enough for our needs;
-    // we deliberately overwrite an existing .bak so the most recent save
-    // always has a usable backup.
-    await fs.copyFile(fullPath, `${fullPath}.bak`);
+    // Defense against a symlink at <file> or <file>.bak pointing outside
+    // dataDir: lstat each, refuse if it's a symlink. fs.copyFile and
+    // writeFile would otherwise follow it and overwrite the linked target.
+    // Then unlink the existing .bak so TOCTOU between this check and the
+    // copy can't be exploited by swapping in a symlink.
+    try {
+      const linkInfo = await fs.lstat(fullPath);
+      if (linkInfo.isSymbolicLink()) {
+        res.status(403).json({ ok: false, error: 'Refusing to edit a symlink' } satisfies ApiResponse);
+        return;
+      }
+    } catch {
+      res.status(404).json({ ok: false, error: 'File not found' } satisfies ApiResponse);
+      return;
+    }
+    try {
+      const bakInfo = await fs.lstat(backupPath);
+      if (bakInfo.isSymbolicLink()) {
+        res.status(403).json({ ok: false, error: 'Refusing to overwrite a symlink at .bak' } satisfies ApiResponse);
+        return;
+      }
+      await fs.unlink(backupPath);
+    } catch (err) {
+      // ENOENT is fine — no prior .bak. Anything else surfaces.
+      if ((err as { code?: string }).code !== 'ENOENT') throw err;
+    }
+
+    await fs.copyFile(fullPath, backupPath);
     await fs.writeFile(fullPath, content, 'utf8');
     console.log(`[LOCAL EDIT] ${filePath} (backup: ${filePath}.bak)`);
     res.json({ ok: true } satisfies ApiResponse);
