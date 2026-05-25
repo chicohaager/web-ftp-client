@@ -10,19 +10,21 @@ interface SaveConnectionDialogProps {
   defaultName: string;
   defaultLocalPath?: string;
   defaultRemotePath?: string;
+  defaultReadOnly?: boolean;
   onConfirm: (
     name: string,
-    opts: { defaultLocalPath: string; defaultRemotePath: string },
+    opts: { defaultLocalPath: string; defaultRemotePath: string; readOnly: boolean },
   ) => void;
   onCancel: () => void;
 }
 
 export function SaveConnectionDialog({
-  open, defaultName, defaultLocalPath, defaultRemotePath, onConfirm, onCancel,
+  open, defaultName, defaultLocalPath, defaultRemotePath, defaultReadOnly, onConfirm, onCancel,
 }: SaveConnectionDialogProps) {
   const [name, setName] = useState(defaultName);
   const [localPath, setLocalPath] = useState(defaultLocalPath ?? '');
   const [remotePath, setRemotePath] = useState(defaultRemotePath ?? '');
+  const [readOnly, setReadOnly] = useState(!!defaultReadOnly);
 
   // Reset fields when dialog opens with a different connection
   useEffect(() => {
@@ -30,14 +32,16 @@ export function SaveConnectionDialog({
       setName(defaultName);
       setLocalPath(defaultLocalPath ?? '');
       setRemotePath(defaultRemotePath ?? '');
+      setReadOnly(!!defaultReadOnly);
     }
-  }, [open, defaultName, defaultLocalPath, defaultRemotePath]);
+  }, [open, defaultName, defaultLocalPath, defaultRemotePath, defaultReadOnly]);
 
   const handleConfirm = () => {
     if (name.trim()) {
       onConfirm(name.trim(), {
         defaultLocalPath: localPath.trim(),
         defaultRemotePath: remotePath.trim(),
+        readOnly,
       });
     }
   };
@@ -82,6 +86,20 @@ export function SaveConnectionDialog({
               onKeyDown={(e) => e.key === 'Enter' && handleConfirm()}
               className="mt-1.5 font-mono text-xs"
             />
+          </label>
+          <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={readOnly}
+              onChange={(e) => setReadOnly(e.target.checked)}
+              className="mt-0.5 accent-primary"
+            />
+            <span>
+              <span className="font-medium">Read-only mode</span>
+              <span className="block text-xs text-muted-foreground">
+                Block delete, rename, mkdir, upload and edit on the remote side. Browse and download stay enabled.
+              </span>
+            </span>
           </label>
         </div>
         <DialogFooter>

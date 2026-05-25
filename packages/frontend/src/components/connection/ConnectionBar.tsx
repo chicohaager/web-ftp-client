@@ -8,7 +8,8 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plug, PlugZap, Loader2, Key, Save } from 'lucide-react';
+import { Plug, PlugZap, Loader2, Key, Save, ShieldAlert } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { useEffect, useState } from 'react';
 import { SaveConnectionDialog } from '@/components/dialogs/SaveConnectionDialog';
 import { Logo } from '@/components/brand/Logo';
@@ -32,6 +33,7 @@ export function ConnectionBar() {
 
   const isConnecting = status.status === 'connecting';
   const isConnected = status.status === 'connected';
+  const isReadOnly = isConnected && status.readOnly === true;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isConnecting) connect();
@@ -152,6 +154,12 @@ export function ConnectionBar() {
 
       {isConnected ? (
         <>
+          {isReadOnly && (
+            <Badge variant="warning" className="gap-1 normal-case tracking-normal" title="This connection blocks delete, rename, mkdir, upload and edit on the remote side.">
+              <ShieldAlert className="w-3 h-3" />
+              Read-only
+            </Badge>
+          )}
           <Button size="sm" variant="destructive" onClick={disconnect} className="h-9 text-sm">
             <PlugZap className="w-3.5 h-3.5 mr-1" />
             Disconnect
@@ -203,6 +211,7 @@ export function ConnectionBar() {
         defaultName={`${host}:${port}`}
         defaultLocalPath={localCurrentPath}
         defaultRemotePath={remoteCurrentPath}
+        defaultReadOnly={useConnectionStore.getState().readOnly}
         onConfirm={(name, opts) => {
           saveConnection(name, opts);
           setShowSaveDialog(false);

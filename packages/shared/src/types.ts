@@ -13,6 +13,7 @@ export interface ConnectionConfig {
   lastUsed?: string; // ISO 8601
   defaultLocalPath?: string;  // local pane jumps here on connect
   defaultRemotePath?: string; // remote pane jumps here on connect
+  readOnly?: boolean;         // if true, mutating remote ops are blocked
 }
 
 export interface ConnectRequest {
@@ -24,6 +25,7 @@ export interface ConnectRequest {
   privateKey?: string;   // PEM-encoded private key
   passphrase?: string;   // Passphrase for encrypted key
   sessionId?: string;    // Reuse existing session
+  readOnly?: boolean;    // if true, server blocks mutating ops on this session
 }
 
 export interface ConnectionStatus {
@@ -31,6 +33,7 @@ export interface ConnectionStatus {
   serverInfo?: string;
   error?: string;
   sessionId?: string;
+  readOnly?: boolean;  // mirrored from the connection that established the session
 }
 
 // === File Types ===

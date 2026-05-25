@@ -23,6 +23,7 @@ export function AppLayout() {
   const pendingRemote = useConnectionStore((s) => s.pendingDefaultRemotePath);
   const clearPendingDefaults = useConnectionStore((s) => s.clearPendingDefaults);
   const isConnected = connectionStatus.status === 'connected';
+  const isReadOnly = isConnected && connectionStatus.readOnly === true;
 
   useWebSocket();
 
@@ -59,6 +60,10 @@ export function AppLayout() {
     const fileNames = files.filter(f => f.type !== 'directory').map(f => f.name);
     if (fileNames.length === 0) return;
 
+    if (direction === 'upload' && isReadOnly) {
+      toast.error('Upload blocked', { description: 'Connection is in read-only mode' });
+      return;
+    }
     const endpoint = direction === 'upload' ? '/api/remote/upload' : '/api/remote/download';
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (sessionId) headers['x-session-id'] = sessionId;
@@ -81,7 +86,7 @@ export function AppLayout() {
     } catch (err) {
       toast.error('Transfer failed', { description: err instanceof Error ? err.message : 'Unknown error' });
     }
-  }, [sessionId, addTransferItems]);
+  }, [sessionId, addTransferItems, isReadOnly]);
 
   const handleLocalTransfer = useCallback((files: FileItem[]) => {
     handleTransfer('upload', files, local.currentPath, remote.currentPath);
@@ -187,6 +192,7 @@ export function AppLayout() {
             sortDirection={local.sortDirection}
             searchFilter={local.searchFilter}
             isConnected={isConnected}
+            isReadOnly={isReadOnly}
             onSelect={local.select}
             onSort={local.setSort}
             onSearchFilter={local.setSearchFilter}
@@ -220,6 +226,7 @@ export function AppLayout() {
             searchFilter={remote.searchFilter}
             disabled={!isConnected}
             isConnected={isConnected}
+            isReadOnly={isReadOnly}
             onSelect={remote.select}
             onSort={remote.setSort}
             onSearchFilter={remote.setSearchFilter}
