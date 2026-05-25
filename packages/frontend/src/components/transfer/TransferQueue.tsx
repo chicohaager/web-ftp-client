@@ -5,11 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatSpeed, formatEta } from '@/lib/format';
-import { ChevronDown, ChevronUp, X, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, X, Trash2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function TransferQueue() {
-  const { items, collapsed, toggleCollapsed, clearCompleted, cancelTransfer } = useTransferStore();
+  const {
+    items, collapsed, toggleCollapsed,
+    clearCompleted, cancelTransfer, retryTransfer, retryAllFailed,
+  } = useTransferStore();
 
   const active = items.filter(t => t.status === 'active');
   const queued = items.filter(t => t.status === 'queued');
@@ -28,17 +31,33 @@ export function TransferQueue() {
           <span>Transfers</span>
           {active.length > 0 && <Badge variant="secondary" className="text-[10px] px-1 py-0">{active.length} active</Badge>}
           {queued.length > 0 && <Badge variant="secondary" className="text-[10px] px-1 py-0">{queued.length} queued</Badge>}
+          {failed.length > 0 && <Badge variant="destructive" className="text-[10px] px-1 py-0">{failed.length} failed</Badge>}
         </div>
-        {!collapsed && (completed.length > 0 || failed.length > 0) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-5 text-[10px] px-2"
-            onClick={(e) => { e.stopPropagation(); clearCompleted(); }}
-          >
-            <Trash2 className="w-3 h-3 mr-1" />
-            Clear
-          </Button>
+        {!collapsed && (
+          <div className="flex items-center gap-1.5">
+            {failed.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-[10px] px-2"
+                onClick={(e) => { e.stopPropagation(); retryAllFailed(); }}
+              >
+                <RotateCcw className="w-3 h-3 mr-1" />
+                Retry failed
+              </Button>
+            )}
+            {completed.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] px-2"
+                onClick={(e) => { e.stopPropagation(); clearCompleted(); }}
+              >
+                <Trash2 className="w-3 h-3 mr-1" />
+                Clear done
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -64,8 +83,16 @@ export function TransferQueue() {
                   ) : (
                     tabItems.map((item) => {
                       const progress = item.totalBytes > 0 ? (item.transferredBytes / item.totalBytes) * 100 : 0;
+                      const isFailed = item.status === 'failed';
                       return (
-                        <div key={item.id} className="grid grid-cols-[1fr_60px_100px_60px_50px_24px] gap-2 px-3 py-1 items-center text-xs">
+                        <div
+                          key={item.id}
+                          className={cn(
+                            'grid grid-cols-[1fr_60px_100px_60px_50px_50px] gap-2 px-3 py-1 items-center text-xs',
+                            isFailed && 'bg-destructive-tint/40',
+                          )}
+                          title={item.error ?? undefined}
+                        >
                           <span className="truncate">{item.fileName}</span>
                           <Badge
                             variant="outline"
@@ -82,20 +109,39 @@ export function TransferQueue() {
                               {item.status === 'completed' ? '100%' : `${Math.round(progress)}%`}
                             </span>
                           </div>
-                          <span className="text-[10px] text-muted-foreground text-right">
+                          <span
+                            className={cn(
+                              'text-[10px] text-right',
+                              isFailed ? 'text-destructive' : 'text-muted-foreground',
+                            )}
+                          >
                             {item.status === 'active' ? formatSpeed(item.speed) : item.status}
                           </span>
                           <span className="text-[10px] text-muted-foreground text-right">
                             {item.status === 'active' ? formatEta(item.totalBytes, item.transferredBytes, item.speed) : ''}
                           </span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5"
-                            onClick={() => cancelTransfer(item.id)}
-                          >
-                            <X className="w-3 h-3" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-0.5">
+                            {isFailed && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 text-primary"
+                                onClick={() => retryTransfer(item.id)}
+                                title={`Retry — ${item.error ?? 'failed'}`}
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5"
+                              onClick={() => cancelTransfer(item.id)}
+                              title="Remove"
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
                         </div>
                       );
                     })
