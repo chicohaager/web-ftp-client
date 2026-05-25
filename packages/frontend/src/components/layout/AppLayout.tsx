@@ -8,7 +8,6 @@ import { useConnectionStore } from '@/stores/connectionStore';
 import { useTransferStore } from '@/stores/transferStore';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { useUiStore } from '@/stores/uiStore';
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -20,7 +19,9 @@ export function AppLayout() {
   const connectionStatus = useConnectionStore((s) => s.status);
   const sessionId = useConnectionStore((s) => s.sessionId);
   const addTransferItems = useTransferStore((s) => s.addItems);
-  const theme = useUiStore((s) => s.theme);
+  const pendingLocal = useConnectionStore((s) => s.pendingDefaultLocalPath);
+  const pendingRemote = useConnectionStore((s) => s.pendingDefaultRemotePath);
+  const clearPendingDefaults = useConnectionStore((s) => s.clearPendingDefaults);
   const isConnected = connectionStatus.status === 'connected';
 
   useWebSocket();
@@ -29,10 +30,16 @@ export function AppLayout() {
     local.fetchFiles('/api/local', '/');
   }, []);
 
+  // Apply a loaded bookmark's default local path immediately (works without connect)
+  useEffect(() => {
+    if (pendingLocal) local.navigateTo(pendingLocal);
+  }, [pendingLocal]);
+
   useEffect(() => {
     if (isConnected) {
-      remote.fetchFiles('/api/remote', '/');
+      remote.fetchFiles('/api/remote', pendingRemote ?? '/');
       toast.success('Connected', { description: connectionStatus.serverInfo });
+      clearPendingDefaults();
     }
   }, [isConnected]);
 
@@ -233,7 +240,7 @@ export function AppLayout() {
 
       <TransferQueue />
       <StatusBar />
-      <Toaster position="bottom-right" theme={theme} />
+      <Toaster position="bottom-right" theme="light" />
     </div>
   );
 }

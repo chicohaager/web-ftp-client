@@ -9,10 +9,11 @@ export const connectionsRouter: RouterType = Router();
 connectionsRouter.get('/', (_req, res) => {
   const db = getDb(res.app.locals.appData);
   const rows = db.prepare(
-    'SELECT id, name, host, port, protocol, username, private_key, last_used FROM connections ORDER BY last_used DESC'
+    'SELECT id, name, host, port, protocol, username, private_key, last_used, default_local_path, default_remote_path FROM connections ORDER BY last_used DESC'
   ).all() as Array<{
     id: string; name: string; host: string; port: number; protocol: string;
     username: string; private_key: string; last_used: string | null;
+    default_local_path: string; default_remote_path: string;
   }>;
   const connections: ConnectionConfig[] = rows.map(r => ({
     id: r.id,
@@ -23,14 +24,15 @@ connectionsRouter.get('/', (_req, res) => {
     username: r.username,
     hasPrivateKey: !!r.private_key,
     lastUsed: r.last_used ?? undefined,
+    defaultLocalPath: r.default_local_path || undefined,
+    defaultRemotePath: r.default_remote_path || undefined,
   }));
   res.json({ ok: true, data: connections } satisfies ApiResponse<ConnectionConfig[]>);
 });
 
 connectionsRouter.post('/', (req, res) => {
-  const { name, host, port, protocol, username, password, privateKey } = req.body;
+  const { name, host, port, protocol, username, password, privateKey, defaultLocalPath, defaultRemotePath } = req.body;
 
-  // Basic validation
   if (!name || !host || !protocol) {
     res.status(400).json({ ok: false, error: 'Missing required fields: name, host, protocol' } satisfies ApiResponse);
     return;
@@ -50,14 +52,19 @@ connectionsRouter.post('/', (req, res) => {
   const encryptedKey = privateKey ? encrypt(privateKey) : '';
 
   db.prepare(
-    'INSERT INTO connections (id, name, host, port, protocol, username, password, private_key, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(id, name, host, port, protocol, username || 'anonymous', encryptedPassword, encryptedKey, new Date().toISOString());
+    'INSERT INTO connections (id, name, host, port, protocol, username, password, private_key, default_local_path, default_remote_path, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(
+    id, name, host, port, protocol, username || 'anonymous',
+    encryptedPassword, encryptedKey,
+    defaultLocalPath ?? '', defaultRemotePath ?? '',
+    new Date().toISOString(),
+  );
 
   res.status(201).json({ ok: true, data: { id } } satisfies ApiResponse<{ id: string }>);
 });
 
 connectionsRouter.put('/:id', (req, res) => {
-  const { name, host, port, protocol, username, password, privateKey } = req.body;
+  const { name, host, port, protocol, username, password, privateKey, defaultLocalPath, defaultRemotePath } = req.body;
   const db = getDb(res.app.locals.appData);
 
   const updates: string[] = [];
@@ -70,6 +77,8 @@ connectionsRouter.put('/:id', (req, res) => {
   if (username !== undefined) { updates.push('username=?'); values.push(username); }
   if (password !== undefined) { updates.push('password=?'); values.push(encrypt(password)); }
   if (privateKey !== undefined) { updates.push('private_key=?'); values.push(encrypt(privateKey)); }
+  if (defaultLocalPath !== undefined) { updates.push('default_local_path=?'); values.push(defaultLocalPath); }
+  if (defaultRemotePath !== undefined) { updates.push('default_remote_path=?'); values.push(defaultRemotePath); }
 
   updates.push('last_used=?');
   values.push(new Date().toISOString());
@@ -88,7 +97,6 @@ connectionsRouter.delete('/:id', (req, res) => {
   res.json({ ok: true } satisfies ApiResponse);
 });
 
-// Get decrypted credentials for a saved connection
 export function getConnectionCredentials(appData: string, id: string): { password: string; privateKey: string } | null {
   const db = getDb(appData);
   const row = db.prepare('SELECT password, private_key FROM connections WHERE id=?').get(id) as { password: string; private_key: string } | undefined;
