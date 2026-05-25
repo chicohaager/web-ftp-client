@@ -3,7 +3,7 @@ import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import {
-  Download, Upload, Pencil, Trash2, FolderPlus, Copy, RefreshCw, Eye,
+  Download, Upload, Pencil, Trash2, FolderPlus, Copy, RefreshCw, Eye, FileEdit,
 } from 'lucide-react';
 
 interface FileContextMenuProps {
@@ -13,7 +13,9 @@ interface FileContextMenuProps {
   selectionCount: number;
   isConnected: boolean;
   canPreview: boolean;
+  canEdit: boolean;
   onPreview: () => void;
+  onEdit: () => void;
   onTransfer: () => void;
   onRename: () => void;
   onDelete: () => void;
@@ -24,7 +26,7 @@ interface FileContextMenuProps {
 
 export function FileContextMenu({
   children, panelType, hasSelection, selectionCount, isConnected,
-  canPreview, onPreview, onTransfer, onRename, onDelete, onNewFolder, onCopyPath, onRefresh,
+  canPreview, canEdit, onPreview, onEdit, onTransfer, onRename, onDelete, onNewFolder, onCopyPath, onRefresh,
 }: FileContextMenuProps) {
   const TransferIcon = panelType === 'local' ? Upload : Download;
   const transferLabel = panelType === 'local' ? 'Upload to Remote' : 'Download to Local';
@@ -34,14 +36,18 @@ export function FileContextMenu({
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-48">
         {canPreview && (
-          <>
-            <ContextMenuItem onClick={onPreview}>
-              <Eye className="w-4 h-4 mr-2" />
-              Preview
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-          </>
+          <ContextMenuItem onClick={onPreview}>
+            <Eye className="w-4 h-4 mr-2" />
+            Preview
+          </ContextMenuItem>
         )}
+        {canEdit && (
+          <ContextMenuItem onClick={onEdit}>
+            <FileEdit className="w-4 h-4 mr-2" />
+            Edit&hellip;
+          </ContextMenuItem>
+        )}
+        {(canPreview || canEdit) && <ContextMenuSeparator />}
         {hasSelection && isConnected && (
           <>
             <ContextMenuItem onClick={onTransfer}>

@@ -99,6 +99,26 @@ export class FtpService {
     return await this.client.pwd();
   }
 
+  // basic-ftp has no server-side copy. Used by the edit endpoint: read the
+  // current file fully into memory (we already cap inputs at 1 MiB upstream)
+  // then re-upload it to dstPath as the .bak. Inefficient but correct.
+  async copy(srcPath: string, dstPath: string): Promise<void> {
+    const buf = new CappedBufferWritable(2 * 1024 * 1024); // generous cap; edit endpoint enforces real limit
+    try {
+      await this.client.downloadTo(buf, srcPath);
+    } catch (err) {
+      if (!buf.truncated && buf.total === 0) throw err;
+    }
+    const data = Buffer.from(buf.asString(), 'utf8');
+    const readable = Readable.from(data);
+    await this.client.uploadFrom(readable, dstPath);
+  }
+
+  async writeBuffer(remotePath: string, content: Buffer): Promise<void> {
+    const readable = Readable.from(content);
+    await this.client.uploadFrom(readable, remotePath);
+  }
+
   async previewText(remotePath: string, maxBytes: number): Promise<{ content: string; truncated: boolean; bytesRead: number; size: number }> {
     let size = 0;
     try { size = await this.client.size(remotePath); } catch { /* SIZE not supported; we'll fall back to bytesRead */ }

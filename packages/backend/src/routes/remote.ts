@@ -225,6 +225,41 @@ remoteRouter.get('/preview', async (req, res) => {
   }
 });
 
+remoteRouter.put('/edit', async (req, res) => {
+  const session = getSession(req.headers['x-session-id'] as string | undefined);
+  if (!session || !session.service.isConnected()) {
+    res.status(400).json({ ok: false, error: 'Not connected' } satisfies ApiResponse);
+    return;
+  }
+  try {
+    const { path: filePath, content } = req.body as { path?: string; content?: string };
+    if (typeof filePath !== 'string' || typeof content !== 'string') {
+      res.status(400).json({ ok: false, error: 'Missing path or content' } satisfies ApiResponse);
+      return;
+    }
+    if (Buffer.byteLength(content, 'utf8') > PREVIEW_MAX_BYTES) {
+      res.status(413).json({ ok: false, error: `Content exceeds ${PREVIEW_MAX_BYTES} bytes` } satisfies ApiResponse);
+      return;
+    }
+    const fileName = path.posix.basename(filePath);
+    if (!fileName || !isPreviewable(fileName)) {
+      res.status(400).json({ ok: false, error: 'File is not text-editable' } satisfies ApiResponse);
+      return;
+    }
+
+    // Backup first so a write failure leaves the user with a recoverable file.
+    // Overwrites any existing .bak — most recent save wins.
+    await session.service.copy(filePath, `${filePath}.bak`);
+    await session.service.writeBuffer(filePath, Buffer.from(content, 'utf8'));
+    console.log(`[REMOTE EDIT] ${filePath} (backup: ${filePath}.bak)`);
+    res.json({ ok: true } satisfies ApiResponse);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Edit failed';
+    console.error(`[REMOTE EDIT] Failed: ${message}`);
+    res.status(500).json({ ok: false, error: message } satisfies ApiResponse);
+  }
+});
+
 // Transfer endpoints
 remoteRouter.post('/download', async (req, res) => {
   const session = getSession(req.headers['x-session-id'] as string | undefined);

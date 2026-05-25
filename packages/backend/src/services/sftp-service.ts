@@ -101,6 +101,18 @@ export class SftpService {
     return await this.client.cwd();
   }
 
+  // Server-side copy (used by edit-with-backup). ssh2-sftp-client's rcopy
+  // streams on the server, no client round-trip.
+  async copy(srcPath: string, dstPath: string): Promise<void> {
+    await this.client.rcopy(srcPath, dstPath);
+  }
+
+  // Upload a buffer/string as the file's full content. Used after copy()
+  // by the edit endpoint.
+  async writeBuffer(remotePath: string, content: Buffer): Promise<void> {
+    await this.client.put(content, remotePath);
+  }
+
   async previewText(remotePath: string, maxBytes: number): Promise<{ content: string; truncated: boolean; bytesRead: number; size: number }> {
     let size = 0;
     try {
