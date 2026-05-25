@@ -1,12 +1,12 @@
 import type { Config } from 'tailwindcss';
 
 export default {
-  darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
         border: 'hsl(var(--border))',
+        'border-hover': 'hsl(var(--border-hover))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         background: 'hsl(var(--background))',
@@ -14,6 +14,8 @@ export default {
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
+          hover: 'hsl(var(--primary-hover))',
+          tint: 'hsl(var(--accent-tint))',
         },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
@@ -22,6 +24,17 @@ export default {
         destructive: {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
+          tint: 'hsl(var(--destructive-tint))',
+        },
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+          tint: 'hsl(var(--success-tint))',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
+          tint: 'hsl(var(--warning-tint))',
         },
         muted: {
           DEFAULT: 'hsl(var(--muted))',
@@ -42,8 +55,16 @@ export default {
       },
       borderRadius: {
         lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        md: 'var(--radius-sm)',
+        sm: 'calc(var(--radius-sm) - 4px)',
+      },
+      fontFamily: {
+        sans: ['Fira Sans', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['Fira Code', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+      },
+      boxShadow: {
+        card: '0 1px 2px rgba(15, 23, 42, .04), 0 6px 18px rgba(15, 23, 42, .05)',
+        'card-hover': '0 1px 2px rgba(15, 23, 42, .05), 0 10px 24px rgba(15, 23, 42, .08)',
       },
     },
   },

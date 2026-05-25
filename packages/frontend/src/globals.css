@@ -1,98 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  /* Light Theme — Nexus-inspired purple/cyan */
   :root {
-    --background: 220 20% 97%;
-    --foreground: 230 25% 12%;
+    /* Surfaces — warm off-white page, white cards */
+    --background: 48 21% 95%;          /* #F5F4EE */
+    --foreground: 162 35% 9%;          /* #0F1F1A */
     --card: 0 0% 100%;
-    --card-foreground: 230 25% 12%;
+    --card-foreground: 162 35% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 230 25% 12%;
-    --primary: 252 100% 64%;
+    --popover-foreground: 162 35% 9%;
+
+    /* Forest-green accent */
+    --primary: 161 36% 22%;            /* #234B3E */
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 10% 94%;
-    --secondary-foreground: 230 25% 20%;
-    --muted: 220 14% 95%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 240 10% 94%;
-    --accent-foreground: 230 25% 12%;
-    --destructive: 0 84% 60%;
+    --primary-hover: 161 38% 17%;      /* #1A3A2F */
+
+    /* Secondary surfaces */
+    --secondary: 48 33% 97%;           /* #FAF9F4 */
+    --secondary-foreground: 162 35% 9%;
+    --muted: 43 21% 90%;               /* #ECE9DF */
+    --muted-foreground: 220 9% 46%;    /* #6B7280 */
+    --accent: 152 36% 90%;             /* #DCEFE5 (mint tint) */
+    --accent-foreground: 161 36% 22%;
+
+    /* Semantic */
+    --destructive: 0 73% 42%;          /* #B91C1C */
     --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 90%;
-    --input: 220 13% 90%;
-    --ring: 252 100% 64%;
-    --radius: 0.5rem;
+    --success: 142 64% 24%;            /* #166534 */
+    --success-foreground: 0 0% 100%;
+    --warning: 26 90% 37%;             /* #B45309 */
+    --warning-foreground: 0 0% 100%;
+    --info: 161 36% 22%;
 
-    /* Custom tokens — light */
-    --success: 172 66% 44%;
-    --warning: 38 92% 50%;
-    --info: 252 100% 64%;
-    --folder-color: 252 80% 62%;
-    --file-color: 215 16% 52%;
-    --image-color: 172 66% 44%;
-    --archive-color: 252 60% 55%;
-    --document-color: 252 100% 64%;
-    --upload-color: 172 66% 44%;
-    --download-color: 252 100% 64%;
-    --local-accent: 172 50% 94%;
-    --remote-accent: 252 50% 94%;
-  }
+    /* Pill-badge tints */
+    --success-tint: 141 84% 93%;
+    --warning-tint: 48 96% 89%;
+    --destructive-tint: 0 93% 94%;
+    --accent-tint: 152 36% 90%;
+    --neutral-tint: 210 40% 96%;
 
-  /* Dark Theme — Nexus deep purple */
-  .dark {
-    --background: 240 20% 7%;
-    --foreground: 220 20% 92%;
-    --card: 240 18% 10%;
-    --card-foreground: 220 20% 92%;
-    --popover: 240 18% 12%;
-    --popover-foreground: 220 20% 92%;
-    --primary: 252 100% 68%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 15% 16%;
-    --secondary-foreground: 220 20% 85%;
-    --muted: 240 15% 14%;
-    --muted-foreground: 220 15% 55%;
-    --accent: 252 40% 18%;
-    --accent-foreground: 220 20% 92%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 240 15% 16%;
-    --input: 240 15% 18%;
-    --ring: 252 100% 68%;
-    --radius: 0.5rem;
+    /* Borders & focus rings */
+    --border: 43 21% 90%;
+    --border-hover: 47 18% 83%;
+    --input: 43 21% 90%;
+    --ring: 161 36% 22%;
 
-    /* Custom tokens — dark */
-    --success: 172 66% 50%;
-    --warning: 38 92% 55%;
-    --info: 252 100% 68%;
-    --folder-color: 252 80% 72%;
-    --file-color: 220 20% 65%;
-    --image-color: 172 66% 55%;
-    --archive-color: 252 60% 60%;
-    --document-color: 252 100% 68%;
-    --upload-color: 172 66% 50%;
-    --download-color: 252 100% 68%;
-    --local-accent: 172 40% 14%;
-    --remote-accent: 252 40% 14%;
+    /* Radii (ZFW Donezo: 18 px cards, 12 px small) */
+    --radius: 1.125rem;
+    --radius-sm: 0.75rem;
+
+    /* File-type accent colors (kept for FilePanel icons) */
+    --folder-color: 161 36% 22%;
+    --file-color: 220 9% 46%;
+    --image-color: 142 64% 24%;
+    --archive-color: 26 90% 37%;
+    --document-color: 161 36% 22%;
+    --upload-color: 142 64% 24%;
+    --download-color: 161 36% 22%;
+    --local-accent: 152 36% 96%;
+    --remote-accent: 48 33% 97%;
   }
 
   * {
     @apply border-border;
   }
 
+  html, body {
+    background: hsl(var(--background));
+  }
+
   body {
-    @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-    font-size: 13px;
+    @apply text-foreground antialiased;
+    font-family: 'Fira Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
     margin: 0;
     overflow: hidden;
   }
 }
 
-/* Selection highlight */
 ::selection {
-  background: hsl(var(--primary) / 0.25);
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+@layer components {
+  .shadow-card {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 6px 18px rgba(15, 23, 42, .05);
+  }
+  .shadow-card-hover {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 10px 24px rgba(15, 23, 42, .08);
+  }
 }

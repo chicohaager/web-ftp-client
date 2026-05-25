@@ -162,18 +162,18 @@ export function FilePanel({
       onRefresh={onRefresh}
     >
       <div
-        className={cn('flex flex-col h-full', isFocused && 'ring-1 ring-ring/20')}
+        className={cn('flex flex-col h-full', isFocused && 'ring-2 ring-primary/20 ring-inset')}
         onClick={() => setFocusedPanel(panelType)}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
         {/* Header */}
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card">
           <Badge
             variant="secondary"
             className={cn(
-              'text-[10px] px-1.5 py-0 shrink-0',
-              panelType === 'local' ? 'bg-[hsl(var(--local-accent))]' : 'bg-[hsl(var(--remote-accent))]',
+              'text-[10px] px-2 py-0.5 shrink-0',
+              panelType === 'local' ? 'bg-[hsl(var(--local-accent))] text-primary' : 'bg-[hsl(var(--remote-accent))] text-muted-foreground',
             )}
           >
             {label}
@@ -201,7 +201,7 @@ export function FilePanel({
         </div>
 
         {/* Toolbar */}
-        <div className="flex items-center gap-0.5 px-2 py-1 border-b">
+        <div className="flex items-center gap-0.5 px-2 py-1 border-b border-border bg-card">
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onGoBack} title="Back">
             <ArrowLeft className="w-3.5 h-3.5" />
           </Button>
@@ -258,7 +258,7 @@ export function FilePanel({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-3 py-1 border-t text-[10px] text-muted-foreground shrink-0">
+        <div className="flex items-center justify-between px-3 py-1.5 border-t border-border bg-card text-[10px] text-muted-foreground shrink-0">
           <span>{filteredFiles.length}{searchFilter ? `/${files.length}` : ''} items</span>
           <span>{selectedIds.size > 0 ? `${selectedIds.size} selected` : ''}</span>
         </div>

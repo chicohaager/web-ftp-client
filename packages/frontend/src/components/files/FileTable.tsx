@@ -25,7 +25,7 @@ export function FileTable({
   return (
     <ScrollArea className="h-full">
       {/* Header */}
-      <div className="grid grid-cols-[20px_1fr_100px_70px_130px] gap-1 px-3 py-1 text-[11px] font-medium text-muted-foreground border-b bg-muted/40 sticky top-0 z-10 select-none">
+      <div className="grid grid-cols-[20px_1fr_100px_70px_130px] gap-1 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground border-b border-border bg-secondary sticky top-0 z-10 select-none">
         <div />
         <button className="flex items-center gap-1 text-left hover:text-foreground transition-colors" onClick={() => onSort('name')}>
           Name {sortColumn === 'name' && <SortIcon className="w-3 h-3" />}
@@ -62,9 +62,9 @@ export function FileTable({
                 key={file.id}
                 className={cn(
                   'grid grid-cols-[20px_1fr_100px_70px_130px] gap-1 px-3 items-center cursor-default select-none',
-                  'h-[26px] text-[12px] leading-tight',
-                  'hover:bg-accent/50 transition-colors duration-75',
-                  isSelected && 'bg-primary/15 text-foreground hover:bg-primary/20',
+                  'h-[28px] text-[13px] leading-tight border-b border-border/40',
+                  'hover:bg-secondary transition-colors duration-75',
+                  isSelected && 'bg-accent text-accent-foreground hover:bg-accent',
                 )}
                 onClick={(e) => onSelect(file.id, e.ctrlKey || e.metaKey, e.shiftKey)}
                 onDoubleClick={() => onOpen(file)}

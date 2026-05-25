@@ -17,10 +17,10 @@ export function TransferQueue() {
   const failed = items.filter(t => t.status === 'failed');
 
   return (
-    <div className={cn('border-t bg-card flex flex-col', collapsed ? 'h-8' : 'h-[200px]')}>
+    <div className={cn('border-t border-border bg-card flex flex-col', collapsed ? 'h-8' : 'h-[220px]')}>
       {/* Header */}
       <div
-        className="flex items-center justify-between px-3 py-1 cursor-pointer hover:bg-muted/30 shrink-0"
+        className="flex items-center justify-between px-4 py-1.5 cursor-pointer hover:bg-secondary shrink-0"
         onClick={toggleCollapsed}
       >
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -45,17 +45,17 @@ export function TransferQueue() {
       {/* Content */}
       {!collapsed && (
         <Tabs defaultValue="all" className="flex-1 min-h-0 flex flex-col">
-          <TabsList className="h-7 mx-3 mb-1">
-            <TabsTrigger value="all" className="text-[10px] h-5 px-2">All ({items.length})</TabsTrigger>
-            <TabsTrigger value="active" className="text-[10px] h-5 px-2">Active ({active.length})</TabsTrigger>
-            <TabsTrigger value="completed" className="text-[10px] h-5 px-2">Done ({completed.length})</TabsTrigger>
-            <TabsTrigger value="failed" className="text-[10px] h-5 px-2">Failed ({failed.length})</TabsTrigger>
+          <TabsList className="mx-4 shrink-0">
+            <TabsTrigger value="all" className="text-[11px] py-1.5 px-3">All ({items.length})</TabsTrigger>
+            <TabsTrigger value="active" className="text-[11px] py-1.5 px-3">Active ({active.length})</TabsTrigger>
+            <TabsTrigger value="completed" className="text-[11px] py-1.5 px-3">Done ({completed.length})</TabsTrigger>
+            <TabsTrigger value="failed" className="text-[11px] py-1.5 px-3">Failed ({failed.length})</TabsTrigger>
           </TabsList>
 
           {(['all', 'active', 'completed', 'failed'] as const).map((tab) => {
             const tabItems = tab === 'all' ? items : tab === 'active' ? [...active, ...queued] : tab === 'completed' ? completed : failed;
             return (
-              <TabsContent key={tab} value={tab} className="flex-1 min-h-0 mt-0">
+              <TabsContent key={tab} value={tab} className="flex-1 min-h-0 mt-2">
                 <ScrollArea className="h-full">
                   {tabItems.length === 0 ? (
                     <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
