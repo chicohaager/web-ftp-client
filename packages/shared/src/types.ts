@@ -92,6 +92,15 @@ export interface TransferRequest {
   files: string[];
 }
 
+// === Preview Types ===
+
+export interface PreviewResponse {
+  content: string;
+  truncated: boolean;
+  size: number;        // full file size in bytes
+  bytesRead: number;   // bytes actually returned (may be < size if truncated)
+}
+
 // === WebSocket Events ===
 
 export type WsEvent =

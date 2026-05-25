@@ -3,7 +3,7 @@ import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import {
-  Download, Upload, Pencil, Trash2, FolderPlus, Copy, RefreshCw,
+  Download, Upload, Pencil, Trash2, FolderPlus, Copy, RefreshCw, Eye,
 } from 'lucide-react';
 
 interface FileContextMenuProps {
@@ -12,6 +12,8 @@ interface FileContextMenuProps {
   hasSelection: boolean;
   selectionCount: number;
   isConnected: boolean;
+  canPreview: boolean;
+  onPreview: () => void;
   onTransfer: () => void;
   onRename: () => void;
   onDelete: () => void;
@@ -22,7 +24,7 @@ interface FileContextMenuProps {
 
 export function FileContextMenu({
   children, panelType, hasSelection, selectionCount, isConnected,
-  onTransfer, onRename, onDelete, onNewFolder, onCopyPath, onRefresh,
+  canPreview, onPreview, onTransfer, onRename, onDelete, onNewFolder, onCopyPath, onRefresh,
 }: FileContextMenuProps) {
   const TransferIcon = panelType === 'local' ? Upload : Download;
   const transferLabel = panelType === 'local' ? 'Upload to Remote' : 'Download to Local';
@@ -31,6 +33,15 @@ export function FileContextMenu({
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-48">
+        {canPreview && (
+          <>
+            <ContextMenuItem onClick={onPreview}>
+              <Eye className="w-4 h-4 mr-2" />
+              Preview
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
         {hasSelection && isConnected && (
           <>
             <ContextMenuItem onClick={onTransfer}>

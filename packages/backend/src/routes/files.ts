@@ -2,8 +2,9 @@ import { Router, type Router as RouterType } from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
-import type { FileItem, ListResponse, ApiResponse } from '@web-ftp-client/shared';
+import type { FileItem, ListResponse, ApiResponse, PreviewResponse } from '@web-ftp-client/shared';
 import { safePath, safeFileName } from '../lib/path-guard.js';
+import { PREVIEW_MAX_BYTES, isPreviewable } from '../lib/preview-config.js';
 
 function fileId(dirPath: string, name: string): string {
   return crypto.createHash('sha256').update(`${dirPath}/${name}`).digest('hex').slice(0, 16);
@@ -102,6 +103,54 @@ filesRouter.post('/rename', async (req, res) => {
     res.json({ ok: true } satisfies ApiResponse);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ ok: false, error: message } satisfies ApiResponse);
+  }
+});
+
+filesRouter.get('/preview', async (req, res) => {
+  try {
+    const dataDir: string = req.app.locals.dataDir;
+    const requestedPath = (req.query.path as string) || '';
+    const fileName = path.posix.basename(requestedPath);
+
+    if (!safeFileName(fileName)) {
+      res.status(400).json({ ok: false, error: 'Invalid file name' } satisfies ApiResponse);
+      return;
+    }
+    if (!isPreviewable(fileName)) {
+      res.status(400).json({ ok: false, error: 'Preview is only available for text-based files' } satisfies ApiResponse);
+      return;
+    }
+
+    const fullPath = safePath(dataDir, requestedPath);
+    if (!fullPath) {
+      res.status(403).json({ ok: false, error: 'Access denied: path traversal' } satisfies ApiResponse);
+      return;
+    }
+
+    const handle = await fs.open(fullPath, 'r');
+    try {
+      const stat = await handle.stat();
+      if (stat.isDirectory()) {
+        res.status(400).json({ ok: false, error: 'Cannot preview a directory' } satisfies ApiResponse);
+        return;
+      }
+      const cap = Math.min(stat.size, PREVIEW_MAX_BYTES);
+      const buf = Buffer.alloc(cap);
+      const { bytesRead } = await handle.read(buf, 0, cap, 0);
+      const data: PreviewResponse = {
+        content: buf.subarray(0, bytesRead).toString('utf8'),
+        truncated: stat.size > bytesRead,
+        size: stat.size,
+        bytesRead,
+      };
+      res.json({ ok: true, data } satisfies ApiResponse<PreviewResponse>);
+    } finally {
+      await handle.close();
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`[LOCAL PREVIEW] Error: ${message}`);
     res.status(500).json({ ok: false, error: message } satisfies ApiResponse);
   }
 });

@@ -2,6 +2,7 @@ import * as ftp from 'basic-ftp';
 import type { FileItem, ConnectRequest } from '@web-ftp-client/shared';
 import crypto from 'crypto';
 import { Writable, Readable } from 'stream';
+import { CappedBufferWritable } from '../lib/preview-stream.js';
 
 function fileId(dirPath: string, name: string): string {
   return crypto.createHash('sha256').update(`${dirPath}/${name}`).digest('hex').slice(0, 16);
@@ -96,5 +97,24 @@ export class FtpService {
 
   async pwd(): Promise<string> {
     return await this.client.pwd();
+  }
+
+  async previewText(remotePath: string, maxBytes: number): Promise<{ content: string; truncated: boolean; bytesRead: number; size: number }> {
+    let size = 0;
+    try { size = await this.client.size(remotePath); } catch { /* SIZE not supported; we'll fall back to bytesRead */ }
+    const buf = new CappedBufferWritable(maxBytes);
+    try {
+      await this.client.downloadTo(buf, remotePath);
+    } catch (err) {
+      // basic-ftp throws if the writable was destroyed for the cap — that's
+      // expected. Rethrow only when no bytes landed (real error).
+      if (!buf.truncated && buf.total === 0) throw err;
+    }
+    return {
+      content: buf.asString(),
+      truncated: buf.truncated,
+      bytesRead: buf.total,
+      size: size || buf.total,
+    };
   }
 }
