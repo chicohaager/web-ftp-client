@@ -6,6 +6,8 @@ import { DeleteDialog } from '@/components/dialogs/DeleteDialog';
 import { RenameDialog } from '@/components/dialogs/RenameDialog';
 import { NewFolderDialog } from '@/components/dialogs/NewFolderDialog';
 import { PreviewDialog } from '@/components/dialogs/PreviewDialog';
+import { EditDialog } from '@/components/dialogs/EditDialog';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -82,6 +84,20 @@ export function FilePanel({
   const previewCandidate = selectedFiles.length === 1 && selectedFiles[0].type === 'file' && isPreviewable(selectedFiles[0].name)
     ? selectedFiles[0]
     : null;
+  // Edit requires a previewable file AND (for remote) an active connection.
+  // Local edit works any time.
+  const editCandidate = previewCandidate && (panelType === 'local' || isConnected) ? previewCandidate : null;
+
+  const [editState, setEditState] = useState<{
+    open: boolean;
+    fileName: string;
+    path: string;
+    initialContent: string | null;
+    loading: boolean;
+    saving: boolean;
+    error: string | null;
+    truncated: boolean;
+  }>({ open: false, fileName: '', path: '', initialContent: null, loading: false, saving: false, error: null, truncated: false });
 
   const handleOpen = (file: FileItem) => {
     if (file.type === 'directory') {
@@ -111,6 +127,55 @@ export function FilePanel({
       setShowRenameDialog(true);
     }
   }, [selectedFiles]);
+
+  const handleEdit = useCallback(async () => {
+    if (!editCandidate) return;
+    const file = editCandidate;
+    const fullPath = currentPath === '/'
+      ? `/${file.name}`
+      : `${currentPath}/${file.name}`;
+    setEditState({
+      open: true, fileName: file.name, path: fullPath,
+      initialContent: null, loading: true, saving: false, error: null, truncated: false,
+    });
+    try {
+      const headers: Record<string, string> = {};
+      if (panelType === 'remote' && sessionId) headers['x-session-id'] = sessionId;
+      const res = await fetch(`/api/${panelType}/preview?path=${encodeURIComponent(fullPath)}`, { headers });
+      const data = await res.json();
+      if (data.ok) {
+        const p = data.data as PreviewResponse;
+        setEditState((s) => ({ ...s, loading: false, initialContent: p.content, truncated: p.truncated }));
+      } else {
+        setEditState((s) => ({ ...s, loading: false, error: data.error ?? 'Could not load file' }));
+      }
+    } catch (err) {
+      setEditState((s) => ({ ...s, loading: false, error: err instanceof Error ? err.message : 'Could not load file' }));
+    }
+  }, [editCandidate, currentPath, panelType, sessionId]);
+
+  const handleEditSave = useCallback(async (content: string) => {
+    setEditState((s) => ({ ...s, saving: true, error: null }));
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (panelType === 'remote' && sessionId) headers['x-session-id'] = sessionId;
+      const res = await fetch(`/api/${panelType}/edit`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ path: editState.path, content }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success('Saved', { description: `${editState.fileName} — backup at ${editState.fileName}.bak` });
+        setEditState((s) => ({ ...s, open: false, saving: false }));
+        onRefresh();
+      } else {
+        setEditState((s) => ({ ...s, saving: false, error: data.error ?? 'Save failed' }));
+      }
+    } catch (err) {
+      setEditState((s) => ({ ...s, saving: false, error: err instanceof Error ? err.message : 'Save failed' }));
+    }
+  }, [panelType, sessionId, editState.path, editState.fileName, onRefresh]);
 
   const handlePreview = useCallback(async () => {
     if (!previewCandidate) return;
@@ -201,7 +266,9 @@ export function FilePanel({
       selectionCount={selectedIds.size}
       isConnected={isConnected}
       canPreview={previewCandidate !== null}
+      canEdit={editCandidate !== null}
       onPreview={handlePreview}
+      onEdit={handleEdit}
       onTransfer={handleTransfer}
       onRename={handleRename}
       onDelete={() => setShowDeleteDialog(true)}
@@ -343,6 +410,18 @@ export function FilePanel({
           size={previewState.size}
           bytesRead={previewState.bytesRead}
           onClose={() => setPreviewState((s) => ({ ...s, open: false }))}
+        />
+        <EditDialog
+          open={editState.open}
+          fileName={editState.fileName}
+          path={editState.path}
+          initialContent={editState.initialContent}
+          loading={editState.loading}
+          saving={editState.saving}
+          error={editState.error}
+          truncated={editState.truncated}
+          onSave={handleEditSave}
+          onClose={() => setEditState((s) => ({ ...s, open: false }))}
         />
       </div>
     </FileContextMenu>

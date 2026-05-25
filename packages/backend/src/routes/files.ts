@@ -155,6 +155,44 @@ filesRouter.get('/preview', async (req, res) => {
   }
 });
 
+filesRouter.put('/edit', async (req, res) => {
+  try {
+    const dataDir: string = req.app.locals.dataDir;
+    const { path: filePath, content } = req.body as { path?: string; content?: string };
+
+    if (typeof filePath !== 'string' || typeof content !== 'string') {
+      res.status(400).json({ ok: false, error: 'Missing path or content' } satisfies ApiResponse);
+      return;
+    }
+    if (Buffer.byteLength(content, 'utf8') > PREVIEW_MAX_BYTES) {
+      res.status(413).json({ ok: false, error: `Content exceeds ${PREVIEW_MAX_BYTES} bytes` } satisfies ApiResponse);
+      return;
+    }
+    const fileName = path.posix.basename(filePath);
+    if (!safeFileName(fileName) || !isPreviewable(fileName)) {
+      res.status(400).json({ ok: false, error: 'File is not text-editable' } satisfies ApiResponse);
+      return;
+    }
+    const fullPath = safePath(dataDir, filePath);
+    if (!fullPath) {
+      res.status(403).json({ ok: false, error: 'Access denied: path traversal' } satisfies ApiResponse);
+      return;
+    }
+
+    // .bak alongside original. fs.copyFile is atomic-enough for our needs;
+    // we deliberately overwrite an existing .bak so the most recent save
+    // always has a usable backup.
+    await fs.copyFile(fullPath, `${fullPath}.bak`);
+    await fs.writeFile(fullPath, content, 'utf8');
+    console.log(`[LOCAL EDIT] ${filePath} (backup: ${filePath}.bak)`);
+    res.json({ ok: true } satisfies ApiResponse);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`[LOCAL EDIT] Error: ${message}`);
+    res.status(500).json({ ok: false, error: message } satisfies ApiResponse);
+  }
+});
+
 filesRouter.delete('/delete', async (req, res) => {
   try {
     const dataDir: string = req.app.locals.dataDir;
