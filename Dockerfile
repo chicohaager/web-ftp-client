@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 RUN npm install -g pnpm@9
 
 WORKDIR /app
@@ -18,7 +18,7 @@ RUN pnpm --filter=frontend build
 RUN pnpm --filter=backend build
 
 # Stage 2: Production
-FROM node:20-alpine
+FROM node:24-alpine
 RUN npm install -g pnpm@9
 
 WORKDIR /app
