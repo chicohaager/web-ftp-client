@@ -1,9 +1,10 @@
 import { Router, type Router as RouterType } from 'express';
 import fs from 'fs/promises';
+import { constants as fsConstants } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import type { FileItem, ListResponse, ApiResponse, PreviewResponse } from '@web-ftp-client/shared';
-import { safePath, safeFileName } from '../lib/path-guard.js';
+import { safePath, safeFileName, realContained } from '../lib/path-guard.js';
 import { PREVIEW_MAX_BYTES, isPreviewable } from '../lib/preview-config.js';
 
 function fileId(dirPath: string, name: string): string {
@@ -16,10 +17,18 @@ filesRouter.get('/list', async (req, res) => {
   try {
     const dataDir: string = req.app.locals.dataDir;
     const requestedPath = (req.query.path as string) || '/';
-    const fullPath = safePath(dataDir, requestedPath);
+    const lexicalPath = safePath(dataDir, requestedPath);
 
-    if (!fullPath) {
+    if (!lexicalPath) {
       res.status(403).json({ ok: false, error: 'Access denied: path traversal' } satisfies ApiResponse);
+      return;
+    }
+
+    // Canonicalize so a symlinked directory under DATA_DIR can't be browsed to
+    // list files outside the sandbox.
+    const fullPath = await realContained(dataDir, lexicalPath);
+    if (!fullPath) {
+      res.status(403).json({ ok: false, error: 'Access denied: symlink escape' } satisfies ApiResponse);
       return;
     }
 
@@ -74,9 +83,16 @@ filesRouter.post('/mkdir', async (req, res) => {
       return;
     }
 
-    const parentPath = safePath(dataDir, dirPath);
-    if (!parentPath) {
+    const lexicalParent = safePath(dataDir, dirPath);
+    if (!lexicalParent) {
       res.status(403).json({ ok: false, error: 'Access denied' } satisfies ApiResponse);
+      return;
+    }
+    // Canonicalize the parent so a symlinked directory can't redirect the new
+    // folder outside the sandbox. name is separator-free (safeFileName).
+    const parentPath = await realContained(dataDir, lexicalParent);
+    if (!parentPath) {
+      res.status(403).json({ ok: false, error: 'Access denied: symlink escape' } satisfies ApiResponse);
       return;
     }
 
@@ -98,9 +114,14 @@ filesRouter.post('/rename', async (req, res) => {
       return;
     }
 
-    const parentPath = safePath(dataDir, dirPath);
-    if (!parentPath) {
+    const lexicalParent = safePath(dataDir, dirPath);
+    if (!lexicalParent) {
       res.status(403).json({ ok: false, error: 'Access denied' } satisfies ApiResponse);
+      return;
+    }
+    const parentPath = await realContained(dataDir, lexicalParent);
+    if (!parentPath) {
+      res.status(403).json({ ok: false, error: 'Access denied: symlink escape' } satisfies ApiResponse);
       return;
     }
 
@@ -127,13 +148,26 @@ filesRouter.get('/preview', async (req, res) => {
       return;
     }
 
-    const fullPath = safePath(dataDir, requestedPath);
-    if (!fullPath) {
+    const lexicalPath = safePath(dataDir, requestedPath);
+    if (!lexicalPath) {
       res.status(403).json({ ok: false, error: 'Access denied: path traversal' } satisfies ApiResponse);
       return;
     }
 
-    const handle = await fs.open(fullPath, 'r');
+    // safePath is lexical only: a symlink under DATA_DIR (plantable by another
+    // app or SMB user on a shared NAS) whose name ends in an allowed extension
+    // — e.g. /DATA/x.env -> /app/data/.encryption-key — passes the extension
+    // allowlist and the prefix check, then fs.open('r') follows it and returns
+    // the target's bytes. Canonicalize and re-assert containment, then open
+    // with O_NOFOLLOW so the (now symlink-free) terminal component can't be
+    // swapped for a link in the TOCTOU window.
+    const realPath = await realContained(dataDir, lexicalPath);
+    if (!realPath) {
+      res.status(404).json({ ok: false, error: 'File not found' } satisfies ApiResponse);
+      return;
+    }
+
+    const handle = await fs.open(realPath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
     try {
       const stat = await handle.stat();
       if (stat.isDirectory()) {
@@ -178,11 +212,23 @@ filesRouter.put('/edit', async (req, res) => {
       res.status(400).json({ ok: false, error: 'File is not text-editable' } satisfies ApiResponse);
       return;
     }
-    const fullPath = safePath(dataDir, filePath);
-    if (!fullPath) {
+    const lexicalPath = safePath(dataDir, filePath);
+    if (!lexicalPath) {
       res.status(403).json({ ok: false, error: 'Access denied: path traversal' } satisfies ApiResponse);
       return;
     }
+
+    // The per-component lstat below only guards the terminal <file> / <file>.bak.
+    // Canonicalize the PARENT directory too, so a symlinked intermediate dir
+    // (e.g. /DATA/evil -> /app/data) can't redirect the copy/write outside the
+    // sandbox while the leaf still looks like a plain file. fileName is
+    // separator-free (safeFileName), so the rebuilt paths stay in realParent.
+    const realParent = await realContained(dataDir, path.dirname(lexicalPath));
+    if (!realParent) {
+      res.status(404).json({ ok: false, error: 'File not found' } satisfies ApiResponse);
+      return;
+    }
+    const fullPath = path.join(realParent, fileName);
     const backupPath = `${fullPath}.bak`;
 
     // Defense against a symlink at <file> or <file>.bak pointing outside
@@ -233,9 +279,16 @@ filesRouter.delete('/delete', async (req, res) => {
       return;
     }
 
-    const parentPath = safePath(dataDir, dirPath);
-    if (!parentPath) {
+    const lexicalParent = safePath(dataDir, dirPath);
+    if (!lexicalParent) {
       res.status(403).json({ ok: false, error: 'Access denied' } satisfies ApiResponse);
+      return;
+    }
+    // Canonicalize the parent: a symlinked directory here would otherwise let a
+    // recursive, force delete escape the sandbox and wipe files outside /DATA.
+    const parentPath = await realContained(dataDir, lexicalParent);
+    if (!parentPath) {
+      res.status(403).json({ ok: false, error: 'Access denied: symlink escape' } satisfies ApiResponse);
       return;
     }
 

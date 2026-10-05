@@ -18,6 +18,14 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', '..', 'data');
 const APP_DATA = process.env.APP_DATA || path.join(__dirname, '..', 'data');
 
+// crypto.ts resolves its own APP_DATA fallback from process.cwd(), which lands
+// somewhere else than the __dirname-relative default above whenever the server
+// is started from the repo root (`pnpm start`). That split would write the
+// encryption key to one directory and the SQLite DB to another — every saved
+// password would silently fail to decrypt after a restart from a different cwd.
+// Publish the resolved value so there is exactly one source of truth.
+process.env.APP_DATA = APP_DATA;
+
 // 2 MiB ceiling so the /edit endpoint (1 MiB content cap + path + JSON
 // overhead) can comfortably pass. Other routes carry tiny bodies, so the
 // extra ceiling is harmless.
@@ -72,7 +80,7 @@ app.get('*', (_req, res) => {
 setupTransferWs(wss);
 
 server.listen(PORT, () => {
-  console.log(`Web FTP Client v0.1.0`);
+  console.log(`Web FTP Client v0.2.0`);
   console.log(`Running on http://localhost:${PORT}`);
   console.log(`Data directory: ${DATA_DIR}`);
 });

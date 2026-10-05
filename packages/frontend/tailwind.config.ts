@@ -2,6 +2,9 @@ import type { Config } from 'tailwindcss';
 
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
+  // Tokens carry the theme, so `dark:` is rarely needed — but where a variant
+  // is unavoidable it must key off the same attribute themeStore stamps.
+  darkMode: ['selector', '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
@@ -63,8 +66,10 @@ export default {
         mono: ['Fira Code', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
       boxShadow: {
-        card: '0 1px 2px rgba(15, 23, 42, .04), 0 6px 18px rgba(15, 23, 42, .05)',
-        'card-hover': '0 1px 2px rgba(15, 23, 42, .05), 0 10px 24px rgba(15, 23, 42, .08)',
+        card: 'var(--shadow-card)',
+        'card-hover': 'var(--shadow-card-hover)',
+        overlay: 'var(--shadow-overlay)',
+        button: 'var(--shadow-button)',
       },
     },
   },

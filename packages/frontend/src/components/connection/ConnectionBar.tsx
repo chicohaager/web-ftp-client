@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useEffect, useState } from 'react';
 import { SaveConnectionDialog } from '@/components/dialogs/SaveConnectionDialog';
 import { Logo } from '@/components/brand/Logo';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import type { Protocol } from '@web-ftp-client/shared';
 
 export function ConnectionBar() {
@@ -205,6 +206,8 @@ export function ConnectionBar() {
           </SelectContent>
         </Select>
       )}
+
+      <ThemeToggle />
 
       <SaveConnectionDialog
         open={showSaveDialog}

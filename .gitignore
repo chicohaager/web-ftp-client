@@ -7,6 +7,16 @@ dist/
 .vite/
 *.tsbuildinfo
 
+# Runtime app data. Contains the AES key that decrypts saved connection
+# passwords — must never reach the repo.
+packages/backend/data/
+.encryption-key
+*.db-wal
+*.db-shm
+
+# Local scratch tree used as the local pane target while testing
+packages/data/
+
 # Maintainer's local working docs — not part of the public repo
 ZIMAOS-KNOWLEDGE.md
 system-status.md
