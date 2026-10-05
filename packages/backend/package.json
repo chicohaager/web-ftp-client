@@ -13,7 +13,7 @@
   "dependencies": {
     "@web-ftp-client/shared": "workspace:*",
     "basic-ftp": "^5.0.5",
-    "better-sqlite3": "^11.7.0",
+    "better-sqlite3": "^12.11.1",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "ssh2-sftp-client": "^11.0.0",

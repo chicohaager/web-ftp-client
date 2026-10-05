@@ -14,7 +14,7 @@
     "deploy": "bash scripts/deploy-remote.sh"
   },
   "engines": {
-    "node": ">=20",
+    "node": ">=24",
     "pnpm": ">=9"
   }
 }
