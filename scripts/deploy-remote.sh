@@ -24,9 +24,9 @@ if [ -z "$TARGET" ]; then
 Usage: $0 user@host [--tarball|--zpkg|--both]
 
 Examples:
-  $0 root@192.168.1.147
+  $0 root@192.168.50.10
   $0 root@zimaos.local --zpkg
-  $0 holgi@zimaos-147.lan --both
+  $0 user@zimaos.lan --both
 EOF
   exit 1
 fi
