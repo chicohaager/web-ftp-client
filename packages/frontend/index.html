@@ -8,6 +8,26 @@
     <meta name="theme-color" content="#234B3E" />
     <meta name="description" content="Web FTP Client — dual-pane FTP/FTPS/SFTP file transfer in the browser." />
     <title>Web FTP Client</title>
+    <script>
+      // Runs before first paint so a dark-theme reload never flashes white.
+      // Mirrors themeStore.ts — the storage key must stay in sync.
+      (function () {
+        try {
+          var stored = localStorage.getItem('ftp-client-theme');
+          var preference =
+            stored === 'light' || stored === 'dark' || stored === 'system'
+              ? stored
+              : 'system';
+          var dark =
+            preference === 'dark' ||
+            (preference === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

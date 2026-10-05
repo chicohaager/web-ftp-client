@@ -54,6 +54,9 @@ for pkg in shared frontend backend; do
     --exclude='*.tsbuildinfo' \
     --exclude='*.db' \
     --exclude='*.sqlite' \
+    --exclude='data' \
+    --exclude='.env' \
+    --exclude='.encryption-key' \
     "packages/${pkg}/" "${STAGE_DIR}/packages/${pkg}/"
 done
 

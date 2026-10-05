@@ -255,7 +255,7 @@ export function AppLayout() {
 
       <TransferQueue />
       <StatusBar />
-      <Toaster position="bottom-right" theme="light" />
+      <Toaster position="bottom-right" />
     </div>
   );
 }

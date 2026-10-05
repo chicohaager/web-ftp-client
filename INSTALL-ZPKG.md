@@ -14,8 +14,8 @@ format. It bundles:
 # 1. Copy the .raw to the ZimaOS host — it MUST be named `web-ftp-client.raw`.
 #    zpkg derives the extension name from the filename-stem and looks for
 #    `extension-release.<stem>` inside the squashfs; a versioned filename like
-#    `web-ftp-client-v0.1.0.raw` will fail with
-#    "Extract filename … extension-release.web-ftp-client-v0.1.0 can't be resolved".
+#    `web-ftp-client-v0.2.0.raw` will fail with
+#    "Extract filename … extension-release.web-ftp-client-v0.2.0 can't be resolved".
 scp web-ftp-client.raw root@zima-host:/tmp/
 
 # 2. Install the zpkg module

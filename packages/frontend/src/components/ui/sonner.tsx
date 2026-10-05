@@ -9,12 +9,18 @@ import {
 } from "lucide-react"
 import { Toaster as Sonner } from "sonner"
 
+import { useThemeStore } from "@/stores/themeStore"
+
 type ToasterProps = React.ComponentProps<typeof Sonner>
 
 const Toaster = ({ ...props }: ToasterProps) => {
+  // Pass the already-resolved theme: sonner's own "system" mode would read
+  // prefers-color-scheme and ignore an explicit user override.
+  const theme = useThemeStore((s) => s.resolved)
+
   return (
     <Sonner
-      theme="light"
+      theme={theme}
       className="toaster group"
       icons={{
         success: <CircleCheck className="h-4 w-4" />,
