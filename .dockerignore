@@ -7,3 +7,5 @@ dist
 *.db
 .vite
 .claude
+# Stale incremental build info makes tsc skip emitting .d.ts files in the image
+**/*.tsbuildinfo

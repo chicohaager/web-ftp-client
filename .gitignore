@@ -7,6 +7,6 @@ dist/
 .vite/
 *.tsbuildinfo
 
-# Holgi's local working docs — not part of the public repo
+# Maintainer's local working docs — not part of the public repo
 ZIMAOS-KNOWLEDGE.md
 system-status.md
