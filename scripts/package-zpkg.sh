@@ -40,7 +40,8 @@ mkdir -p "${RAW_DIR}/usr/share/casaos/modules"
 mkdir -p "${RAW_DIR}/usr/share/casaos/www/modules/${NAME}"
 
 # 1. systemd-sysext extension release marker
-echo "ID=_any" > "${RAW_DIR}/usr/lib/extension-release.d/extension-release.${NAME}"
+# SYSEXT_VERSION_ID (os-release(5)) lets tools read the installed version from the image.
+printf 'ID=_any\nSYSEXT_VERSION_ID=%s\n' "${VERSION}" > "${RAW_DIR}/usr/lib/extension-release.d/extension-release.${NAME}"
 
 # 2. CasaOS module manifest
 cp "${REPO_ROOT}/zpkg/${NAME}.json" "${RAW_DIR}/usr/share/casaos/modules/${NAME}.json"
