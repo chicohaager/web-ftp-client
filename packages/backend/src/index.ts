@@ -7,12 +7,22 @@ import { connectionsRouter } from './routes/connections.js';
 import { filesRouter } from './routes/files.js';
 import { remoteRouter } from './routes/remote.js';
 import { setupTransferWs } from './ws/transfer-ws.js';
+import { requireAuth, sessionUser, sameOrigin, prepareSetup, status, setup, login, logout, changePassword } from './services/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const server = createServer(app);
-const wss = new WebSocketServer({ server, path: '/ws' });
+// Transfer events only for a signed-in browser on this origin (the events name files and paths).
+const wss = new WebSocketServer({
+  server,
+  path: '/ws',
+  verifyClient: (info, done) => {
+    if (!sameOrigin(info.req)) return done(false, 403, 'Forbidden');
+    if (!sessionUser(info.req)) return done(false, 401, 'Unauthorized');
+    done(true);
+  },
+});
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', '..', 'data');
@@ -59,6 +69,16 @@ app.use((req, res, next) => {
 app.locals.dataDir = DATA_DIR;
 app.locals.appData = APP_DATA;
 
+// Sign-in: the only API routes reachable without a session
+app.get('/api/auth/status', status);
+app.post('/api/auth/setup', setup);
+app.post('/api/auth/login', login);
+app.post('/api/auth/logout', logout);
+app.post('/api/auth/password', changePassword);
+
+// Everything else under /api needs a session
+app.use('/api', requireAuth);
+
 // API routes
 app.use('/api/connections', connectionsRouter);
 app.use('/api/local', filesRouter);
@@ -78,6 +98,8 @@ app.get('*', (_req, res) => {
 
 // WebSocket for transfer progress
 setupTransferWs(wss);
+
+prepareSetup();
 
 server.listen(PORT, () => {
   console.log(`Web FTP Client v0.2.0`);

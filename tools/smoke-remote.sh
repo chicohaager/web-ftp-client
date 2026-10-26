@@ -37,6 +37,11 @@ PORT=$P DATA_DIR="$T/data" APP_DATA="$T/app" node packages/backend/dist/index.js
 BPID=$!
 for _ in $(seq 1 50); do curl -s -o /dev/null "http://127.0.0.1:$P/" && break; sleep 0.2; done
 kill -0 "$BPID" 2> /dev/null || { echo "backend did not start:"; cat "$T/backend.log"; exit 2; }
+# sign in: create the account with the setup code the backend wrote, keep the session cookie
+curl -s -c "$T/jar" -X POST "http://127.0.0.1:$P/api/auth/setup" -H 'Content-Type: application/json' -H "Origin: http://127.0.0.1:$P" \
+  -d "{\"username\":\"smoke\",\"password\":\"smoke-pass-long-1\",\"setupCode\":\"$(cat "$T/app/setup-code")\"}" > "$T/setup.json"
+grep -q '"ok":true' "$T/setup.json" || { echo "sign-in failed: $(cat "$T/setup.json")"; exit 2; }
+COOKIE=$(awk '$6 == "wfc_session" { print $6 "=" $7 }' "$T/jar")
 for _ in $(seq 1 50); do nc -z 127.0.0.1 2121 && nc -z 127.0.0.1 2222 && break; sleep 0.2; done
 sleep 2
 
@@ -44,14 +49,15 @@ sleep 2
 node -e '
 const WebSocket = require(require.resolve("ws", { paths: ["packages/backend"] }));
 const fs = require("fs");
-const ws = new WebSocket("ws://127.0.0.1:" + process.argv[1] + "/ws");
+const ws = new WebSocket("ws://127.0.0.1:" + process.argv[1] + "/ws",
+  { headers: { Cookie: process.argv[3], Origin: "http://127.0.0.1:" + process.argv[1] } });
 ws.on("message", m => fs.appendFileSync(process.argv[2], m.toString() + "\n"));
 ws.on("error", e => fs.appendFileSync(process.argv[2], "ERROR " + e.message + "\n"));
-' "$P" "$T/ws.log" &
+' "$P" "$T/ws.log" "$COOKIE" &
 WPID=$!
 
 api() { # <method> <path> [json] [session]
-  curl -s -X "$1" "http://127.0.0.1:$P/api$2" -H 'Content-Type: application/json' ${4:+-H "x-session-id: $4"} ${3:+-d "$3"}
+  curl -s -X "$1" "http://127.0.0.1:$P/api$2" -b "$T/jar" -H "Origin: http://127.0.0.1:$P" -H 'Content-Type: application/json' ${4:+-H "x-session-id: $4"} ${3:+-d "$3"}
 }
 field() { python3 -c "import json,sys; d=json.load(sys.stdin); print(eval(sys.argv[1]))" "$1"; }
 wait_done() { # <session> <name> <direction>
