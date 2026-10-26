@@ -89,6 +89,12 @@ case "${1:-help}" in
     compose restart
     echo "Now: sudo web-ftp-client setup-code"
     ;;
+  tls-fingerprint)
+    # SHA-256 of the app's certificate, to compare with the browser's warning on the first visit
+    docker exec web-ftp-client node -e "const c=require('crypto'),f=require('fs');console.log(new c.X509Certificate(f.readFileSync(process.env.TLS_CERT||'/app/data/tls/cert.pem')).fingerprint256)" 2> /dev/null \
+      | tr -cd 'A-F0-9:\n' | grep . \
+      || { echo "No certificate: the app is not running, or TLS is off (sudo web-ftp-client status)." >&2; exit 1; }
+    ;;
   setup-code)
     # read inside the container (as its user), not from APP_DIR on the host
     # the container writes this file: print only the characters a setup code consists of (no terminal escapes)
@@ -112,6 +118,7 @@ Commands:
   logs       Follow combined container logs
   status     docker compose ps
   setup-code Print the one-time code that creates the account on the first visit
+  tls-fingerprint  SHA-256 of the HTTPS certificate (compare with the browser's warning)
   reset-account  Forgot the password: remove the account (saved connections stay)
   help       Show this message
 EOF
