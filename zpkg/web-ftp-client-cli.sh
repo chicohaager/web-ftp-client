@@ -33,11 +33,14 @@ prepare_data() {
     mkdir -m 700 "${APP_DIR}"
     chown -h "${DATA_UID}:${DATA_UID}" "${APP_DIR}"
   elif [ -d "${APP_DIR}" ] && [ ! -L "${APP_DIR}" ] && [ "$(stat -c %u "${APP_DIR}")" = "${DATA_UID}" ]; then
-    chmod 700 "${APP_DIR}"    # v0.1.0 installs left it 775; the database in it needs no other reader
+    # v0.1.0 installs left it 775; the database in it needs no other reader. The folder's owner can still rename
+    # it despite the sticky bit, so chmod works on the folder we are in, after checking that one's owner: a
+    # symlink swapped in meanwhile can at most lead to another folder of the same owner.
+    ( cd -P -- "${APP_DIR}" && [ "$(stat -c %u .)" = "${DATA_UID}" ] && chmod 700 . )
   elif [ -d "${APP_DIR}" ] && [ ! -L "${APP_DIR}" ] && [ "$(stat -c %u "${APP_DIR}")" = 0 ]; then
-    # made by root (sudo mkdir, or dockerd creating a missing bind source): the container could not write to it
-    chown -h "${DATA_UID}:${DATA_UID}" "${APP_DIR}"
-    chmod 700 "${APP_DIR}"
+    # made by root (sudo mkdir, or dockerd creating a missing bind source): the container could not write to it.
+    # Only root can rename a folder of root under the sticky bit; the changes still go to the folder we are in.
+    ( cd -P -- "${APP_DIR}" && [ "$(stat -c %u .)" = 0 ] && chown "${DATA_UID}:${DATA_UID}" . && chmod 700 . )
   fi
   if [ -e "${APP_DIR}/.env" ]; then
     echo "Note: ${APP_DIR}/.env is no longer read (since v0.2.0 the stack runs from ${SRC_DIR}). See INSTALL-ZPKG.md, Update." >&2
@@ -88,7 +91,8 @@ case "${1:-help}" in
     ;;
   setup-code)
     # read inside the container (as its user), not from APP_DIR on the host
-    docker exec web-ftp-client cat /app/data/setup-code 2> /dev/null \
+    # the container writes this file: print only the characters a setup code consists of (no terminal escapes)
+    docker exec web-ftp-client cat /app/data/setup-code 2> /dev/null | tr -cd 'A-Za-z0-9_\n-' | grep . \
       || { echo "No setup code: the account exists already, or the app is not running (sudo web-ftp-client status)." >&2; exit 1; }
     ;;
   help|*)

@@ -62,9 +62,16 @@ if grep -q "^docker .* compose -f $T/img/docker-compose.yml --project-directory 
 chmod 775 "$D"
 if cli start && [ "$(stat -c %a "$D")" = 700 ] && grep -q "compose -f $T/img/docker-compose.yml.* start$" "$T/log"; then ok "a v0.1.0 folder (775) is tightened to 700 and used"; else bad "775 folder: $(stat -c %a "$D") $(cat "$T/out")"; fi
 rm -rf "$D" && mkdir -m 755 "$D" && touch "$D/.env"
-# a folder of root: in the test the stand-in "root" is the test user, so the CLI copy treats uid 0 as $U
-sed -i "s|\"\$(stat -c %u \"\${APP_DIR}\")\" = 0 ]|\"\$(stat -c %u \"\${APP_DIR}\")\" = $U ]|" "$T/cli"
-if cli start && [ "$(stat -c %a "$D")" = 700 ] && grep -q "is no longer read" "$T/out"; then ok "a folder of root (755, with .env) becomes 700 and the .env gets a note"; else bad "folder of root: $(stat -c %a "$D") $(tr -d '\0' < "$T/out")"; fi
+# a folder of root: the stand-in "root" is the test user ($U), the container user a different uid (4242), so
+# the folder takes the root branch, not the container-user branch. chown is a stand-in that only logs, so the
+# guard afterwards refuses the folder (still owned by $U, not 4242) - this case checks the branch, not the start.
+sed -e "s|^DATA_UID=$U$|DATA_UID=4242|" \
+    -e "s|\"\$(stat -c %u \"\${APP_DIR}\")\" = 0 ]|\"\$(stat -c %u \"\${APP_DIR}\")\" = $U ]|" \
+    -e "s|\"\$(stat -c %u .)\" = 0 ]|\"\$(stat -c %u .)\" = $U ]|" "$T/cli" > "$T/cli-root"
+[ "$(grep -c "= $U ]" "$T/cli-root")" = 3 ] || bad "test copy for the root case: substitution did not apply"
+: > "$T/log"; PATH="$T/bin:$PATH" bash "$T/cli-root" start > "$T/out" 2>&1
+if grep -q "^chown 4242:4242 .$" "$T/log" && [ "$(stat -c %a "$D")" = 700 ] && grep -q "is no longer read" "$T/out"; then ok "a folder of root is handed to the container user, 700, and the .env gets a note"; else bad "folder of root: $(stat -c %a "$D") log: $(tr -d '\0' < "$T/log") out: $(tr -d '\0' < "$T/out")"; fi
+rm -rf "$D" && mkdir -m 755 "$D"
 mv "$D" "$T/old" && ln -s "$T/real" "$D"
 if ! cli start && grep -q 'ist ein Symlink' "$T/out" && ! grep -q '^docker' "$T/log"; then ok "a symlink in place of the folder stops start before docker runs"; else bad "symlink: $(cat "$T/out" "$T/log")"; fi
 if cli status && grep -q "compose -f $T/img/docker-compose.yml.* ps$" "$T/log"; then ok "status needs no data folder check"; else bad "status: $(cat "$T/out")"; fi
