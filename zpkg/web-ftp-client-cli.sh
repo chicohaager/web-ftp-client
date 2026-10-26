@@ -22,11 +22,18 @@ export DOCKER_CONFIG="${DOCKER_CONFIG:-/DATA/.docker}"
 # a symlink, belongs to someone other than root or the container user, or is writable by others.
 # Up to v0.1.0 the CLI copied the sources into APP_DIR; those copies stay there, unused.
 prepare_data() {
+  local parent
+  parent=$(dirname "${APP_DIR}")
+  # Sticky bit first: from then on only root and the folder's owner can rename or replace APP_DIR, so the
+  # checks and changes below cannot be raced by swapping the folder (appdata-guard.sh sets it too, later).
+  if [ -d "${parent}" ] && [ ! -L "${parent}" ] && [ "$(stat -c %u "${parent}")" = 0 ]; then
+    chmod +t "${parent}"
+  fi
   if [ ! -e "${APP_DIR}" ] && [ ! -L "${APP_DIR}" ]; then
     mkdir -m 700 "${APP_DIR}"
-    chown "${DATA_UID}:${DATA_UID}" "${APP_DIR}"
+    chown -h "${DATA_UID}:${DATA_UID}" "${APP_DIR}"
   elif [ -d "${APP_DIR}" ] && [ ! -L "${APP_DIR}" ] && [ "$(stat -c %u "${APP_DIR}")" = "${DATA_UID}" ]; then
-    chmod go-w "${APP_DIR}"    # v0.1.0 installs left it group-writable (775)
+    chmod 700 "${APP_DIR}"    # v0.1.0 installs left it 775; the database in it needs no other reader
   fi
   APPDATA_GUARD_UID="${DATA_UID}" APPDATA_GUARD_PATH_UID=0 /bin/sh "${GUARD}" --no-create "${APP_DIR}" \
     || { echo "Refusing to use ${APP_DIR} (see the message above)." >&2; exit 1; }

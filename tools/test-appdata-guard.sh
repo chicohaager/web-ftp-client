@@ -47,17 +47,18 @@ mkdir -p "$T/bin" "$T/img" "$T/libexec" && cp sysext/appdata-guard.sh "$T/libexe
 printf '#!/bin/sh\necho "docker $PWD $*" >> "%s/log"\n' "$T" > "$T/bin/docker"
 printf '#!/bin/sh\necho "chown $*" >> "%s/log"\n' "$T" > "$T/bin/chown"
 chmod +x "$T/bin/docker" "$T/bin/chown"
-rm -rf "$T/AppData" && mkdir -m 755 "$T/AppData"
+rm -rf "$T/AppData" && mkdir "$T/AppData" && chmod 777 "$T/AppData"   # as on ZimaOS 1.8: 0777, no sticky bit
 sed -e "s|^APP_DIR=.*|APP_DIR=\"$T/AppData/web-ftp-client\"|" -e "s|^SRC_DIR=.*|SRC_DIR=\"$T/img\"|" \
     -e "s|^GUARD=.*|GUARD=\"$T/libexec/appdata-guard.sh\"|" -e "s|^DATA_UID=.*|DATA_UID=$U|" \
-    -e "s|APPDATA_GUARD_PATH_UID=0|APPDATA_GUARD_PATH_UID=$U|" "$C" > "$T/cli"
-[ "$(grep -c "$T" "$T/cli")" = 3 ] || bad "test copy of the CLI: path substitution did not apply"
+    -e "s|APPDATA_GUARD_PATH_UID=0|APPDATA_GUARD_PATH_UID=$U|" \
+    -e "s|\"\$(stat -c %u \"\${parent}\")\" = 0|\"\$(stat -c %u \"\${parent}\")\" = $U|" "$C" > "$T/cli"
+[ "$(grep -c "$T" "$T/cli")" = 3 ] && [ "$(grep -c "= $U ]; then" "$T/cli")" = 1 ] || bad "test copy of the CLI: path substitution did not apply"
 cli() { : > "$T/log"; PATH="$T/bin:$PATH" bash "$T/cli" "$@" > "$T/out" 2>&1; }
 D="$T/AppData/web-ftp-client"
-if cli install && [ -d "$D" ] && [ "$(stat -c %a "$D")" = 700 ] && grep -q "^chown $U:$U $D$" "$T/log"; then ok "fresh install creates the data folder 700 for the container user"; else bad "fresh install: $(cat "$T/out" "$T/log")"; fi
+if cli install && [ -d "$D" ] && [ "$(stat -c %a "$D")" = 700 ] && grep -q "^chown -h $U:$U $D$" "$T/log" && [ "$(stat -c %a "$T/AppData")" = 1777 ]; then ok "fresh install creates the data folder 700 for the container user"; else bad "fresh install: $(cat "$T/out" "$T/log")"; fi
 if grep -q "^docker .* compose -f $T/img/docker-compose.yml --project-directory $T/img up -d --build$" "$T/log"; then ok "install builds from the image folder"; else bad "install compose call: $(cat "$T/log")"; fi
 chmod 775 "$D"
-if cli start && [ "$(stat -c %a "$D")" = 755 ] && grep -q "compose -f $T/img/docker-compose.yml.* start$" "$T/log"; then ok "a v0.1.0 folder (775) is tightened and used"; else bad "775 folder: $(stat -c %a "$D") $(cat "$T/out")"; fi
+if cli start && [ "$(stat -c %a "$D")" = 700 ] && grep -q "compose -f $T/img/docker-compose.yml.* start$" "$T/log"; then ok "a v0.1.0 folder (775) is tightened to 700 and used"; else bad "775 folder: $(stat -c %a "$D") $(cat "$T/out")"; fi
 mv "$D" "$T/old" && ln -s "$T/real" "$D"
 if ! cli start && grep -q 'ist ein Symlink' "$T/out" && ! grep -q '^docker' "$T/log"; then ok "a symlink in place of the folder stops start before docker runs"; else bad "symlink: $(cat "$T/out" "$T/log")"; fi
 if cli status && grep -q "compose -f $T/img/docker-compose.yml.* ps$" "$T/log"; then ok "status needs no data folder check"; else bad "status: $(cat "$T/out")"; fi
