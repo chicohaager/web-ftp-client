@@ -4,7 +4,7 @@ import { SftpService } from '../services/sftp-service.js';
 import { transferQueue } from '../services/transfer-queue.js';
 import { safePath, safeFileName } from '../lib/path-guard.js';
 import type { ConnectRequest, ApiResponse, ListResponse, ConnectionStatus, TransferItem, PreviewResponse } from '@web-ftp-client/shared';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { PREVIEW_MAX_BYTES, isPreviewable } from '../lib/preview-config.js';

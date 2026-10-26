@@ -1,8 +1,41 @@
 import * as ftp from 'basic-ftp';
+// Not part of basic-ftp's public index, but plain exports of its dist (the package has no "exports" map).
+import { parsePasvResponse, connectForPassiveTransfer } from 'basic-ftp/dist/transfer.js';
 import type { FileItem, ConnectRequest } from '@web-ftp-client/shared';
 import crypto from 'crypto';
 import { Writable, Readable } from 'stream';
 import { CappedBufferWritable } from '../lib/preview-stream.js';
+
+// Passive mode over IPv4 that always opens the data connection to the host of the control connection and takes
+// only the port from the PASV reply. A server behind NAT often answers PASV with its LAN address: basic-ftp 5
+// replaced a private address, basic-ftp 6 throws ("PASV returned another host"). Ignoring the address keeps such
+// servers working and still never connects anywhere else (no FTP bounce).
+async function passiveToControlHost(ctx: ftp.FTPContext): Promise<ftp.FTPResponse> {
+  const res = await ctx.request('PASV');
+  const target = parsePasvResponse(res.message);
+  const controlHost = ctx.socket.remoteAddress?.replace(/^::ffff:/i, '');
+  if (!controlHost) throw new Error("Control socket is disconnected, can't get remote address.");
+  await connectForPassiveTransfer(controlHost, target.port, ctx);
+  return res;
+}
+
+// EPSV first (it carries only a port anyway), then PASV as above; the first one that works is kept.
+function passiveStrategy(client: ftp.Client): (ctx: ftp.FTPContext) => Promise<ftp.FTPResponse> {
+  return async (ctx) => {
+    let lastError: unknown;
+    for (const strategy of [ftp.enterPassiveModeIPv6, passiveToControlHost]) {
+      try {
+        const res = await strategy(ctx);
+        client.prepareTransfer = strategy;
+        return res;
+      } catch (err) {
+        if (ctx.closed) throw err;
+        lastError = err;
+      }
+    }
+    throw lastError;
+  };
+}
 
 function fileId(dirPath: string, name: string): string {
   return crypto.createHash('sha256').update(`${dirPath}/${name}`).digest('hex').slice(0, 16);
@@ -16,6 +49,7 @@ export class FtpService {
   constructor() {
     this.client = new ftp.Client(10000);
     this.client.ftp.verbose = false;
+    this.client.prepareTransfer = passiveStrategy(this.client);
   }
 
   async connect(config: ConnectRequest): Promise<string> {

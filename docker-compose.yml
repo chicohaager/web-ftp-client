@@ -20,6 +20,11 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${TZ:-Europe/Berlin}
+      - TRUST_PROXY=${TRUST_PROXY:-}   # the reverse proxy's address, e.g. 172.16.0.0/12 (README); never a number
+      - TLS=${TLS:-}                   # off: plain HTTP (only behind a proxy that does HTTPS)
+      - TLS_HOSTNAMES=${TLS_HOSTNAMES:-}   # extra names/IPs for the self-signed certificate
+      - TLS_CERT=${TLS_CERT:-}         # own certificate + key: paths inside the container, both or neither (README)
+      - TLS_KEY=${TLS_KEY:-}
     x-casaos:
       envs:
         - container: NODE_ENV
@@ -60,4 +65,4 @@ x-casaos:
     de_de: Web FTP Client
   port_map: "8089"
   index: /
-  scheme: http
+  scheme: https
