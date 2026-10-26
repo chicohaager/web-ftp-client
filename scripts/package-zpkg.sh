@@ -16,6 +16,13 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# No image without a full check (scripts/check.sh); SKIP_CHECK=1 only for a local experiment, never for a release.
+if [ "${SKIP_CHECK:-0}" = 1 ]; then
+  echo "WARNING: SKIP_CHECK=1 - building without scripts/check.sh. Do not release this image." >&2
+else
+  bash scripts/check.sh || { echo "scripts/check.sh failed - no image built." >&2; exit 1; }
+fi
+
 NAME="web-ftp-client"
 VERSION="$(node -p "require('./package.json').version")"
 OUT_DIR="${REPO_ROOT}/dist"

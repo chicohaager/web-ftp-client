@@ -11,10 +11,12 @@
     "package:zpkg": "bash scripts/package-zpkg.sh",
     "package:all": "bash scripts/package-zpkg.sh && bash scripts/package-release.sh",
     "package:icewhale": "bash scripts/package-icewhale.sh",
-    "deploy": "bash scripts/deploy-remote.sh"
+    "deploy": "bash scripts/deploy-remote.sh",
+    "check": "bash scripts/check.sh"
   },
   "engines": {
     "node": ">=24",
     "pnpm": ">=9"
-  }
+  },
+  "packageManager": "pnpm@9.15.9"
 }
