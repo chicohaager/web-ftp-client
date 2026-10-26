@@ -59,12 +59,17 @@ export function getDb(appDataDir: string): Database.Database {
   return db;
 }
 
-// Graceful shutdown
+// Graceful shutdown. A handler for a signal replaces Node's default of exiting on it, so the handler has to exit
+// itself — without that, the backend kept running after SIGTERM (tools/smoke-remote.sh checks it).
 function closeDb() {
   if (db) {
     db.close();
     db = null;
   }
 }
-process.on('SIGTERM', closeDb);
-process.on('SIGINT', closeDb);
+function shutdown() {
+  closeDb();
+  process.exit(0);
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
