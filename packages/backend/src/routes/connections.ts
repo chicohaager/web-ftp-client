@@ -1,7 +1,7 @@
 import { Router, type Router as RouterType } from 'express';
 import { getDb } from '../services/db.js';
 import { encrypt, decrypt } from '../services/crypto.js';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import type { ConnectionConfig, ApiResponse } from '@web-ftp-client/shared';
 
 export const connectionsRouter: RouterType = Router();

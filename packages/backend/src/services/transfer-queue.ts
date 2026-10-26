@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import type { TransferItem, TransferDirection, WsEvent } from '@web-ftp-client/shared';
