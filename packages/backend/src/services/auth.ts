@@ -95,25 +95,37 @@ function sameCode(given: string): boolean {
 
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILURES = 5;
-const failures = new Map<string, { count: number; first: number }>();
+const MAX_TRACKED = 10000;
+// count: failures in the window that began at `first`; lockedUntil: set by the 5th failure, 15 minutes from then
+const failures = new Map<string, { count: number; first: number; lockedUntil: number }>();
 
+// req.ip is the socket address, or with TRUST_PROXY the client address the proxy reports
 function clientKey(req: Request): string {
-  return req.socket.remoteAddress || 'unknown';
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
+
+function prune(now: number): void {
+  for (const [k, f] of failures) {
+    if (f.lockedUntil <= now && f.first + WINDOW_MS <= now) failures.delete(k);
+  }
 }
 
 function lockedFor(req: Request): number {
   const f = failures.get(clientKey(req));
-  if (!f) return 0;
-  const left = f.first + WINDOW_MS - Date.now();
-  if (left <= 0) { failures.delete(clientKey(req)); return 0; }
-  return f.count >= MAX_FAILURES ? left : 0;
+  return f ? Math.max(0, f.lockedUntil - Date.now()) : 0;
 }
 
 function recordFailure(req: Request): void {
+  const now = Date.now();
+  if (failures.size >= MAX_TRACKED) prune(now);
   const k = clientKey(req);
-  const f = failures.get(k);
-  if (!f || f.first + WINDOW_MS < Date.now()) failures.set(k, { count: 1, first: Date.now() });
-  else f.count++;
+  let f = failures.get(k);
+  if (!f || (f.first + WINDOW_MS <= now && f.lockedUntil <= now)) {
+    f = { count: 0, first: now, lockedUntil: 0 };
+    failures.set(k, f);
+  }
+  f.count++;
+  if (f.count >= MAX_FAILURES) f.lockedUntil = now + WINDOW_MS;
 }
 
 function tooMany(req: Request, res: Response): boolean {
@@ -128,17 +140,29 @@ function tooMany(req: Request, res: Response): boolean {
 
 // --- sessions ---------------------------------------------------------------------------------------------
 
-function parseCookies(header: string | undefined): Record<string, string> {
-  const out: Record<string, string> = {};
+// Only the session cookie is read. Other cookies on this host (any app on another port can set them) are
+// ignored, and a value that is not valid percent-encoding is ignored too — decodeURIComponent throws on it.
+function sessionToken(header: string | undefined): string | null {
   for (const part of (header || '').split(';')) {
     const i = part.indexOf('=');
-    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+    if (i > 0 && part.slice(0, i).trim() === SESSION_COOKIE) {
+      try {
+        return decodeURIComponent(part.slice(i + 1).trim());
+      } catch {
+        return null;
+      }
+    }
   }
-  return out;
+  return null;
+}
+
+export function sessionTokenHash(req: IncomingMessage): string | null {
+  const token = sessionToken(req.headers.cookie);
+  return token ? tokenHash(token) : null;
 }
 
 export function sessionUser(req: IncomingMessage): { id: number; username: string } | null {
-  const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+  const token = sessionToken(req.headers.cookie);
   if (!token) return null;
   const row = db().prepare(
     'SELECT users.id AS id, users.username AS username, sessions.expires_at AS exp FROM sessions JOIN users ON users.id = sessions.user_id WHERE token_hash = ?',
@@ -170,20 +194,37 @@ function startSession(req: Request, res: Response, userId: number): void {
 // SameSite=Strict does not separate ports: every app on the same host counts as the same site. So any request
 // that changes something, and the WebSocket upgrade, must come from a page of this very origin.
 
+// Behind a reverse proxy that rewrites Host, set TRUST_PROXY (see README): then the host the browser used comes
+// from X-Forwarded-Host. Without TRUST_PROXY that header is ignored — anyone could send it.
+const TRUST_PROXY = !!process.env.TRUST_PROXY;
+
 export function sameOrigin(req: IncomingMessage): boolean {
   const origin = req.headers.origin;
   if (!origin) return false;
+  const forwarded = TRUST_PROXY ? String(req.headers['x-forwarded-host'] || '').split(',')[0].trim() : '';
+  const host = forwarded || req.headers.host;
   try {
-    return new URL(origin).host === req.headers.host;
+    return new URL(origin).host === host;
   } catch {
     return false;
   }
 }
 
+// Open WebSockets are checked at the upgrade only; ws/transfer-ws.ts registers a callback here that closes the
+// sockets whose session is gone (sign-out, password change). It also runs on a timer for expiry and reset-account.
+let onSessionsEnded: () => void = () => {};
+export function whenSessionsEnd(cb: () => void): void { onSessionsEnded = cb; }
+function sessionsEnded(): void { onSessionsEnded(); }
+
 // --- middleware and handlers ------------------------------------------------------------------------------
+
+// The frontend returns to the sign-in page only on this header: other routes answer 401 for other reasons
+// (remote.ts: a request without x-session-id), and that must not sign anyone out.
+export const SIGNED_OUT_HEADER = 'X-Signed-Out';
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (!sessionUser(req)) {
+    res.setHeader(SIGNED_OUT_HEADER, '1');
     res.status(401).json({ ok: false, error: 'Not signed in' });
     return;
   }
@@ -247,8 +288,9 @@ export function login(req: Request, res: Response): void {
 
 export function logout(req: Request, res: Response): void {
   if (!sameOrigin(req)) { res.status(403).json({ ok: false, error: 'Request from another origin refused' }); return; }
-  const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+  const token = sessionToken(req.headers.cookie);
   if (token) db().prepare('DELETE FROM sessions WHERE token_hash = ?').run(tokenHash(token));
+  sessionsEnded();
   res.clearCookie(SESSION_COOKIE, { path: '/' });
   res.json({ ok: true });
 }
@@ -274,6 +316,7 @@ export function changePassword(req: Request, res: Response): void {
   d.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(next), user.id);
   d.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id); // signs out every other browser too
   startSession(req, res, user.id);
+  sessionsEnded();
   console.log('[AUTH] Password changed');
   res.json({ ok: true });
 }

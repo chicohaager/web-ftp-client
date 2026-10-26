@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
 import { useConnectionStore } from '@/stores/connectionStore';
+import { useTransferStore } from '@/stores/transferStore';
 import { toast } from 'sonner';
 
 const MIN_PASSWORD = 10;
@@ -25,6 +26,8 @@ export function AccountMenu() {
 
   // Close an open remote connection first: the server keeps it, and nobody would see it after sign-out.
   const signOut = async () => {
+    const running = useTransferStore.getState().items.filter((t) => t.status === 'active' || t.status === 'queued').length;
+    if (running > 0 && !window.confirm(`${running} transfer(s) still running. Signing out disconnects and stops them. Sign out?`)) return;
     const conn = useConnectionStore.getState();
     if (conn.status.status === 'connected') await conn.disconnect().catch(() => undefined);
     await logout();

@@ -14,14 +14,12 @@
     "@web-ftp-client/shared": "workspace:*",
     "basic-ftp": "^6.2.3",
     "better-sqlite3": "^12.11.1",
-    "cors": "^2.8.6",
     "express": "^4.22.3",
     "ssh2-sftp-client": "^11.0.0",
     "ws": "^8.22.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
-    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/ssh2-sftp-client": "^9.0.6",
     "@types/ws": "^8.18.2",

@@ -26,9 +26,9 @@ const bad = (m) => { console.log(`FAIL ${m}`); fails++; };
 const check = (cond, m, detail = '') => (cond ? ok(m) : bad(`${m} ${detail}`));
 
 let proc;
-async function start() {
+async function start(extraEnv = {}) {
   proc = spawn('node', [path.join(backend, 'dist/index.js')], {
-    env: { ...process.env, PORT: String(PORT), DATA_DIR: path.join(tmp, 'data'), APP_DATA: appData },
+    env: { ...process.env, PORT: String(PORT), DATA_DIR: path.join(tmp, 'data'), APP_DATA: appData, ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   proc.log = '';
@@ -52,7 +52,7 @@ async function call(method, url, { body, cookie, headers = {} } = {}) {
   });
   let json = null;
   try { json = await res.json(); } catch { /* not json */ }
-  return { status: res.status, json, setCookie: res.headers.get('set-cookie') || '' };
+  return { status: res.status, json, setCookie: res.headers.get('set-cookie') || '', headers: res.headers };
 }
 const cookieOf = (setCookie) => setCookie.split(';')[0];
 
@@ -79,6 +79,11 @@ try {
     check(r.status === 401, `${m} ${u.split('?')[0]} without session → 401`, `(got ${r.status})`);
   }
   check(await wsOpen({ Origin: BASE }) === 401, 'WebSocket without session → 401');
+  check(r.headers.get('x-signed-out') === '1', '401 of a missing session carries X-Signed-Out');
+  await wsOpen({ Origin: BASE, Cookie: 'x=%; wfc_session=%E0%A4%A' });
+  r = await call('GET', '/api/auth/status', { cookie: 'x=%; wfc_session=%' });
+  check(proc.exitCode === null && r.status === 200, 'malformed cookies (WebSocket and HTTP): backend stays up, 200', `(exit ${proc.exitCode}, got ${r.status})`);
+  check(r.headers.get('x-frame-options') === 'DENY' && /frame-ancestors 'none'/.test(r.headers.get('content-security-policy') || ''), 'not frameable (X-Frame-Options, CSP frame-ancestors)');
 
   r = await call('POST', '/api/auth/setup', { headers: ORIGIN, body: { username: 'admin', password: 'correct horse battery', setupCode: 'wrong-code-x' } });
   check(r.status === 403, 'setup with a wrong code → 403', `(got ${r.status})`);
@@ -103,6 +108,8 @@ try {
   r = await call('POST', '/api/connections', { cookie: firstCookie, headers: { Origin: 'http://127.0.0.1:8080' }, body: { name: 'x', host: 'h', port: 21, protocol: 'ftp', username: 'u', password: 'p' } });
   check(r.status === 403, 'change from another port of the same host → 403', `(got ${r.status})`);
   check(await wsOpen({ Origin: BASE, Cookie: firstCookie }) === 'open', 'WebSocket with session → open');
+  r = await call('POST', '/api/remote/transfers/nope/retry', { cookie: firstCookie, headers: ORIGIN });
+  check(r.status === 401 && !r.headers.get('x-signed-out'), 'retry without a connection: 401 but no X-Signed-Out (stays signed in)', `(got ${r.status}, header ${r.headers.get('x-signed-out')})`);
   check(await wsOpen({ Origin: 'http://evil.example', Cookie: firstCookie }) === 403, 'WebSocket from another origin → 403');
 
   // 3 failed sign-ins are throttled
@@ -125,8 +132,15 @@ try {
   check(r.status === 200, 'sign in with the password → 200', `(got ${r.status})`);
   const secondCookie = cookieOf(r.setCookie);
 
-  // 5 sign-out ends only that session
-  r = await call('POST', '/api/auth/logout', { cookie: secondCookie, headers: ORIGIN });
+  // 5 sign-out ends only that session — and closes its open WebSocket
+  const closed = new Promise((resolve) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`, { headers: { Origin: BASE, Cookie: secondCookie } });
+    ws.on('close', (code) => resolve(code));
+    ws.on('open', async () => { await call('POST', '/api/auth/logout', { cookie: secondCookie, headers: ORIGIN }); });
+    setTimeout(() => resolve('still open after 3 s'), 3000);
+  });
+  const wsCode = await closed;
+  check(wsCode === 4401, 'sign-out closes that browser\'s open WebSocket (4401)', `(got ${wsCode})`);
   r = await call('GET', '/api/connections', { cookie: secondCookie });
   check(r.status === 401, 'after sign-out the cookie is dead', `(got ${r.status})`);
   r = await call('GET', '/api/connections', { cookie: firstCookie });
@@ -171,6 +185,14 @@ try {
   const fifthCookie = cookieOf(r.setCookie);
   r = await call('GET', '/api/connections', { cookie: fifthCookie });
   check(JSON.stringify(r.json).includes('keep me'), 'after reset: the saved connection is still there');
+
+  // 9 behind a reverse proxy that rewrites Host: without TRUST_PROXY refused, with it the forwarded host counts
+  const viaProxy = { Origin: 'https://ftp.example.org', 'X-Forwarded-Host': 'ftp.example.org', 'X-Forwarded-Proto': 'https' };
+  r = await call('POST', '/api/auth/login', { headers: viaProxy, body: { username: 'admin2', password: 'another long password' } });
+  check(r.status === 403, 'proxy headers without TRUST_PROXY are ignored → 403', `(got ${r.status})`);
+  await stop(); await start({ TRUST_PROXY: '1' });
+  r = await call('POST', '/api/auth/login', { headers: viaProxy, body: { username: 'admin2', password: 'another long password' } });
+  check(r.status === 200 && /;\s*Secure/i.test(r.setCookie), 'with TRUST_PROXY: sign-in through the proxy, cookie Secure', `(got ${r.status})`);
 } catch (err) {
   bad(`test aborted: ${err.message}`);
 } finally {

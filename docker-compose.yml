@@ -20,6 +20,7 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${TZ:-Europe/Berlin}
+      - TRUST_PROXY=${TRUST_PROXY:-}   # set to 1 behind an HTTPS reverse proxy (README)
     x-casaos:
       envs:
         - container: NODE_ENV

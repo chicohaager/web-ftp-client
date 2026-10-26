@@ -13,12 +13,12 @@ interface AuthState {
   signedOut: () => void;
 }
 
-async function post(url: string, body: unknown): Promise<{ ok: boolean; error?: string; data?: { username?: string } }> {
+async function post(url: string, body: unknown): Promise<{ ok: boolean; status: number; error?: string; data?: { username?: string } }> {
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   try {
-    return await res.json();
+    return { ...(await res.json()), status: res.status };
   } catch {
-    return { ok: false, error: `HTTP ${res.status}` };
+    return { ok: false, status: res.status, error: `HTTP ${res.status}` };
   }
 }
 
@@ -39,6 +39,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setup: async (username, password, setupCode) => {
     const r = await post('/api/auth/setup', { username, password, setupCode });
+    if (r.status === 409) { await get().refresh(); return null; }  // created meanwhile (another tab): sign in
     if (!r.ok) return r.error ?? 'Setup failed';
     set({ phase: 'ready', username: r.data?.username ?? username });
     return null;
@@ -61,8 +62,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return r.ok ? null : (r.error ?? 'Password change failed');
   },
 
-  // Any API call answered 401 (session expired, signed out in another tab) lands here.
+  // Session gone (expired, signed out elsewhere, account reset): ask the server whether sign-in or setup is next.
   signedOut: () => {
-    if (get().phase === 'ready') set({ phase: 'login', username: null });
+    if (get().phase === 'ready') void get().refresh();
   },
 }));
