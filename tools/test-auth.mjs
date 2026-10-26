@@ -193,9 +193,12 @@ try {
   const viaProxy = { Origin: 'https://ftp.example.org', 'X-Forwarded-Host': 'ftp.example.org', 'X-Forwarded-Proto': 'https' };
   r = await call('POST', '/api/auth/login', { headers: viaProxy, body: { username: 'Jörg', password: 'another long password' } });
   check(r.status === 403, 'proxy headers without TRUST_PROXY are ignored → 403', `(got ${r.status})`);
-  await stop(); await start({ TRUST_PROXY: '10.9.9.9' });
+  await stop(); await start({ TRUST_PROXY: '192.0.2.9' });
   r = await call('POST', '/api/auth/login', { headers: viaProxy, body: { username: 'Jörg', password: 'another long password' } });
   check(r.status === 403, 'TRUST_PROXY names another address: this client\'s proxy headers are ignored → 403', `(got ${r.status})`);
+  await stop(); await start({ TRUST_PROXY: 'false' });
+  r = await call('POST', '/api/auth/login', { headers: viaProxy, body: { username: 'Jörg', password: 'another long password' } });
+  check(r.status === 403, 'TRUST_PROXY=false means off: starts, proxy headers ignored → 403', `(got ${r.status})`);
   await stop();
   const hop = spawn('node', [path.join(backend, 'dist/index.js')], { env: { ...process.env, PORT: String(PORT), APP_DATA: appData, DATA_DIR: path.join(tmp, 'data'), TRUST_PROXY: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
   let hopLog = '';

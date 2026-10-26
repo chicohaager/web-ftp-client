@@ -81,6 +81,10 @@ export function loadTls(appData: string): TlsMaterial {
   try {
     pair = readPair(keyFile, certFile);
   } catch (err) {
+    // a file the app may not read (owner changed) is not broken: replacing it would show every browser a new
+    // certificate warning — stop and say so
+    // (file system errors carry `syscall`; OpenSSL's parse errors carry a `code` too, so that can't tell them apart)
+    if ((err as NodeJS.ErrnoException).syscall) throw new Error(`${dir}: ${(err as Error).message} — check owner and permissions of the data folder`);
     // the app made this pair itself, so a broken one (empty, cut off, mismatched) is replaced, not a restart loop
     console.log(`[TLS] ${dir} unusable (${(err as Error).message}): making a new self-signed certificate`);
     makeSelfSigned(dir);

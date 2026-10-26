@@ -1,0 +1,11 @@
+# copyright and maintainer lines (public on main since v0.1.0)
+LICENSE:Kuehn
+README.md:Kuehn
+packages/frontend/src/components/layout/StatusBar.tsx:Kuehn
+scripts/package-icewhale.sh:Kuehn
+# usage examples (public on main since v0.1.0), no real hosts
+scripts/deploy-remote.sh:192.168.50.10
+scripts/deploy-remote.sh:root@zimaos.local
+scripts/deploy-remote.sh:user@zimaos.lan
+# test: an FTP server behind NAT announces a private address in PASV
+tools/test-ftp-passive.mjs:10.0.0.99
