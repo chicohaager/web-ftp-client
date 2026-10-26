@@ -90,9 +90,11 @@ Set `TLS=off` if the proxy talks plain HTTP to the app (or keep TLS and let the
 proxy accept the app's certificate), and `TRUST_PROXY` to the proxy's address:
 `loopback`, an IP or a subnet, comma-separated (Express syntax; e.g.
 `172.16.0.0/12` for a proxy container on a Docker network). A hop count such as
-`1` is refused: port 8089 is reachable from the LAN directly, and every client
-could then set its own `X-Forwarded-For` and escape the lock after failed
-sign-ins. Then the app takes the client address (for
+`1` is refused (the app does not start): port 8089 is reachable from the LAN
+directly, and every client could then set its own `X-Forwarded-For` and escape
+the lock after failed sign-ins. Coming from an older setup with
+`TRUST_PROXY=1`, put the proxy's address there instead. `off`, `false`, `0`,
+`no` or empty mean no proxy. Then the app takes the client address (for
 the lock after failed attempts), HTTPS (the cookie becomes `Secure`) and the host
 the browser used (`X-Forwarded-Host`, for the origin check) from the proxy.
 Without `TRUST_PROXY` these headers are ignored — anyone could send them.

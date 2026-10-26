@@ -47,7 +47,8 @@ const wss = new WebSocketServer({
 // (Express syntax). Only from those addresses do client address, HTTPS (Secure cookie) and host come from the
 // X-Forwarded-* headers. Off by default. A hop count ("1") or "true" is refused: port 8089 is reachable directly from
 // the LAN, so it would trust every client's own X-Forwarded-For and lift the lock after failed sign-ins.
-const TRUST_PROXY = (process.env.TRUST_PROXY || '').trim();
+const TRUST_PROXY_RAW = (process.env.TRUST_PROXY || '').trim();
+const TRUST_PROXY = ['off', 'false', '0', 'no'].includes(TRUST_PROXY_RAW.toLowerCase()) ? '' : TRUST_PROXY_RAW;
 if (TRUST_PROXY) {
   if (/^\d+$/.test(TRUST_PROXY) || /^(true|yes|on)$/i.test(TRUST_PROXY)) {
     console.error(`TRUST_PROXY=${TRUST_PROXY} refused: name the proxy's address instead (e.g. loopback, 172.16.0.0/12), see README`);

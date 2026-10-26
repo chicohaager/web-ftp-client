@@ -208,9 +208,10 @@ export function sameOrigin(req: IncomingMessage): boolean {
   const viaProxy = !!(trustsProxy && peer && trustsProxy(peer, 0));
   const first = (name: string) => String(req.headers[name] || '').split(',')[0].trim();
   const host = (viaProxy && first('x-forwarded-host')) || req.headers.host;
-  // the page must also use this scheme: over HTTPS an Origin http://<same host:port> is someone else's page
-  // (a proxy that sends no X-Forwarded-Proto leaves the scheme unknown, then only the host counts)
-  const scheme = viaProxy ? first('x-forwarded-proto') : ((req.socket as TLSSocket).encrypted ? 'https' : 'http');
+  // over HTTPS the page must use https too: an Origin http://<same host:port> is someone else's page. Over plain
+  // HTTP the scheme the browser used is unknown (TLS=off behind a proxy that does HTTPS but sends no trusted
+  // X-Forwarded-Proto), so then only the host counts.
+  const scheme = viaProxy ? first('x-forwarded-proto') : ((req.socket as TLSSocket).encrypted ? 'https' : '');
   try {
     const u = new URL(origin);
     return u.host === host && (!scheme || u.protocol === `${scheme}:`);

@@ -187,8 +187,16 @@ try {
     'empty cert.pem → new self-signed pair, served and logged');
   check((fs.statSync(keyFile).mode & 0o777) === 0o600 && !fs.existsSync(keyFile + '.new'), 'new pair: key 0600, no temp files left');
 
-  // 6 own certificate via TLS_CERT/TLS_KEY
+  // 5c a pair the app may not read (owner changed) is not replaced: the start stops and names the folder
   await stop();
+  const fpBefore = new crypto.X509Certificate(fs.readFileSync(certFile)).fingerprint256;
+  fs.chmodSync(keyFile, 0o000);
+  let unreadable = await startFails();
+  fs.chmodSync(keyFile, 0o600);
+  check(unreadable.rc !== 0 && /check owner and permissions/.test(unreadable.log) && new crypto.X509Certificate(fs.readFileSync(certFile)).fingerprint256 === fpBefore,
+    'unreadable key.pem → start refused, certificate kept', `(rc ${unreadable.rc})`);
+
+  // 6 own certificate via TLS_CERT/TLS_KEY
   const own = path.join(tmp, 'own');
   fs.mkdirSync(own);
   execFileSync('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-keyout', path.join(own, 'k.pem'), '-out', path.join(own, 'c.pem'), '-days', '1', '-subj', '/CN=own-test'], { stdio: 'ignore' });
@@ -209,6 +217,8 @@ try {
   await stop(); await start({ TLS: 'off' });
   r = await req('http', 'GET', '/api/auth/status');
   check(r.status === 200 && /TLS off/.test(proc.log), 'TLS=off: plain HTTP serves the API, log says so');
+  r = await req('http', 'POST', '/api/auth/logout', { headers: { Origin: `https://127.0.0.1:${PORT}`, Host: `127.0.0.1:${PORT}` } });
+  check(r.status !== 403, 'TLS=off behind an HTTPS proxy (no TRUST_PROXY): the https page of the same host is not refused', `(got ${r.status})`);
   check(cliFingerprint() !== fpOwn && !/^[0-9A-F:]{95}$/.test(cliFingerprint()), 'CLI tls-fingerprint with TLS off → no fingerprint (old cert.pem in the folder is not printed)', `(got ${cliFingerprint()})`);
   await stop(); await start({ TLS: 'false' });
   r = await req('http', 'GET', '/api/auth/status');
