@@ -52,6 +52,9 @@ cp "${REPO_ROOT}/icon.svg"        "${RAW_DIR}/usr/share/casaos/www/modules/${NAM
 
 # 4. CLI wrapper + systemd unit
 install -m 755 "${REPO_ROOT}/zpkg/${NAME}-cli.sh" "${RAW_DIR}/usr/bin/${NAME}"
+# Folder check run by the CLI before it touches /DATA/AppData/${NAME} (lintux-modkit appdata-guard.sh,
+# copied into sysext/ — tools/test-appdata-guard.sh compares it with lintux-modkit's)
+install -D -m 0644 "${REPO_ROOT}/sysext/appdata-guard.sh" "${RAW_DIR}/usr/libexec/${NAME}/appdata-guard.sh"
 cp "${REPO_ROOT}/zpkg/${NAME}.service" "${RAW_DIR}/usr/lib/systemd/system/${NAME}.service"
 
 # 5. Compose source bundle (what 'web-ftp-client install' copies to /DATA/AppData/...)
