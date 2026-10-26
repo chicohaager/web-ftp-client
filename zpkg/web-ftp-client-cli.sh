@@ -34,6 +34,13 @@ prepare_data() {
     chown -h "${DATA_UID}:${DATA_UID}" "${APP_DIR}"
   elif [ -d "${APP_DIR}" ] && [ ! -L "${APP_DIR}" ] && [ "$(stat -c %u "${APP_DIR}")" = "${DATA_UID}" ]; then
     chmod 700 "${APP_DIR}"    # v0.1.0 installs left it 775; the database in it needs no other reader
+  elif [ -d "${APP_DIR}" ] && [ ! -L "${APP_DIR}" ] && [ "$(stat -c %u "${APP_DIR}")" = 0 ]; then
+    # made by root (sudo mkdir, or dockerd creating a missing bind source): the container could not write to it
+    chown -h "${DATA_UID}:${DATA_UID}" "${APP_DIR}"
+    chmod 700 "${APP_DIR}"
+  fi
+  if [ -e "${APP_DIR}/.env" ]; then
+    echo "Note: ${APP_DIR}/.env is no longer read (since v0.2.0 the stack runs from ${SRC_DIR}). See INSTALL-ZPKG.md, Update." >&2
   fi
   APPDATA_GUARD_UID="${DATA_UID}" APPDATA_GUARD_PATH_UID=0 /bin/sh "${GUARD}" --no-create "${APP_DIR}" \
     || { echo "Refusing to use ${APP_DIR} (see the message above)." >&2; exit 1; }

@@ -14,7 +14,9 @@ C=zpkg/web-ftp-client-cli.sh
 
 # 1 root never reads from APP_DIR: every compose call goes through compose() with the image's compose file
 if grep -q '^  docker compose -f "${COMPOSE}" --project-directory "${SRC_DIR}" "$@"$' "$C" && grep -q '^COMPOSE="${SRC_DIR}/docker-compose.yml"$' "$C"; then ok "compose runs from the module image (SRC_DIR)"; else bad "compose() does not use the image's compose file"; fi
-n=$(grep -cE 'cd "\$\{APP_DIR\}"|\$\{APP_DIR\}/(docker-compose|Dockerfile|\.env)' "$C")
+# reads or runs something from APP_DIR: cd into it, a file in it as -f/--env-file/source/cat/< argument
+# (a test for existence, [ -e ... ], and a message naming the path read nothing)
+n=$(grep -cE 'cd "\$\{APP_DIR\}"|(-f|--env-file|source|\.|cat|<) +"?\$\{APP_DIR\}/' "$C")
 if [ "$n" = 0 ]; then ok "nothing in the CLI reads compose, Dockerfile or .env from APP_DIR"; else bad "$n line(s) use APP_DIR as source"; fi
 n=$(grep -cE '^ *docker compose' "$C")
 if [ "$n" = 1 ]; then ok "exactly one docker compose call (inside compose())"; else bad "$n docker compose calls — one bypasses compose()"; fi
@@ -59,6 +61,10 @@ if cli install && [ -d "$D" ] && [ "$(stat -c %a "$D")" = 700 ] && grep -q "^cho
 if grep -q "^docker .* compose -f $T/img/docker-compose.yml --project-directory $T/img up -d --build$" "$T/log"; then ok "install builds from the image folder"; else bad "install compose call: $(cat "$T/log")"; fi
 chmod 775 "$D"
 if cli start && [ "$(stat -c %a "$D")" = 700 ] && grep -q "compose -f $T/img/docker-compose.yml.* start$" "$T/log"; then ok "a v0.1.0 folder (775) is tightened to 700 and used"; else bad "775 folder: $(stat -c %a "$D") $(cat "$T/out")"; fi
+rm -rf "$D" && mkdir -m 755 "$D" && touch "$D/.env"
+# a folder of root: in the test the stand-in "root" is the test user, so the CLI copy treats uid 0 as $U
+sed -i "s|\"\$(stat -c %u \"\${APP_DIR}\")\" = 0 ]|\"\$(stat -c %u \"\${APP_DIR}\")\" = $U ]|" "$T/cli"
+if cli start && [ "$(stat -c %a "$D")" = 700 ] && grep -q "is no longer read" "$T/out"; then ok "a folder of root (755, with .env) becomes 700 and the .env gets a note"; else bad "folder of root: $(stat -c %a "$D") $(tr -d '\0' < "$T/out")"; fi
 mv "$D" "$T/old" && ln -s "$T/real" "$D"
 if ! cli start && grep -q 'ist ein Symlink' "$T/out" && ! grep -q '^docker' "$T/log"; then ok "a symlink in place of the folder stops start before docker runs"; else bad "symlink: $(cat "$T/out" "$T/log")"; fi
 if cli status && grep -q "compose -f $T/img/docker-compose.yml.* ps$" "$T/log"; then ok "status needs no data folder check"; else bad "status: $(cat "$T/out")"; fi
