@@ -58,6 +58,16 @@ Five wrong attempts from one address lock it for 15 minutes. Forgot the password
 packages/backend/dist/reset-account.js`, then restart the container) removes the
 account — saved connections stay — and the next start prints a new setup code.
 
+### Behind a reverse proxy (HTTPS)
+
+On the LAN the app speaks plain HTTP on port 8089: password and session cookie
+travel unencrypted. For access from outside, put an HTTPS reverse proxy in front
+and set `TRUST_PROXY=1` for the container (one proxy hop; Express syntax such as
+`loopback` also works). Then the app takes the client address (for the lock after
+failed attempts), HTTPS (the cookie becomes `Secure`) and the host the browser used
+(`X-Forwarded-Host`, for the origin check) from the proxy. Without `TRUST_PROXY`
+these headers are ignored — anyone could send them.
+
 ### Development
 
 ```bash

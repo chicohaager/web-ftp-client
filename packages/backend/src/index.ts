@@ -36,6 +36,19 @@ const APP_DATA = process.env.APP_DATA || path.join(__dirname, '..', 'data');
 // Publish the resolved value so there is exactly one source of truth.
 process.env.APP_DATA = APP_DATA;
 
+// Behind a reverse proxy (TRUST_PROXY=1, or a value Express understands, e.g. "loopback"): client address,
+// HTTPS (Secure cookie) and host come from the proxy's X-Forwarded-* headers. Off by default.
+if (process.env.TRUST_PROXY) {
+  app.set('trust proxy', /^\d+$/.test(process.env.TRUST_PROXY) ? Number(process.env.TRUST_PROXY) : process.env.TRUST_PROXY);
+}
+
+// The app is never shown inside a frame (the ZimaOS tile navigates the top window to it): no clickjacking.
+app.use((_req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  next();
+});
+
 // 2 MiB ceiling so the /edit endpoint (1 MiB content cap + path + JSON
 // overhead) can comfortably pass. Other routes carry tiny bodies, so the
 // extra ceiling is harmless.
