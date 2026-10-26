@@ -272,7 +272,8 @@ export function login(req: Request, res: Response): void {
   if (tooMany(req, res)) return;
   const username = field(req.body?.username).trim();
   const password = field(req.body?.password);
-  const row = db().prepare('SELECT id, password_hash FROM users WHERE username = ?').get(username) as
+  // user names compare without case: "Holgi" and "holgi" are the same account (26.10.2026, a sign-in failed on it)
+  const row = db().prepare('SELECT id, password_hash FROM users WHERE username = ? COLLATE NOCASE').get(username) as
     { id: number; password_hash: string } | undefined;
   const good = verifyPassword(password, row?.password_hash ?? DUMMY_HASH) && !!row;
   if (!good) {

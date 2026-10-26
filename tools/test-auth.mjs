@@ -128,14 +128,15 @@ try {
   check(r.status === 401 && r.json?.error === 'Wrong user name or password', 'wrong password → 401');
   r = await call('POST', '/api/auth/login', { headers: ORIGIN, body: { username: 'nobody', password: 'wrong' } });
   check(r.status === 401 && r.json?.error === 'Wrong user name or password', 'unknown user → same 401 text');
-  r = await call('POST', '/api/auth/login', { headers: ORIGIN, body: { username: 'admin', password: 'correct horse battery' } });
-  check(r.status === 200, 'sign in with the password → 200', `(got ${r.status})`);
+  r = await call('POST', '/api/auth/login', { headers: ORIGIN, body: { username: ' ADMIN ', password: 'correct horse battery' } });
+  check(r.status === 200, 'sign in with the password, user name in other case and with spaces → 200', `(got ${r.status})`);
   const secondCookie = cookieOf(r.setCookie);
 
   // 5 sign-out ends only that session — and closes its open WebSocket
   const closed = new Promise((resolve) => {
     const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`, { headers: { Origin: BASE, Cookie: secondCookie } });
     ws.on('close', (code) => resolve(code));
+    ws.on('error', (e) => resolve(`error: ${e.message}`));
     ws.on('open', async () => { await call('POST', '/api/auth/logout', { cookie: secondCookie, headers: ORIGIN }); });
     setTimeout(() => resolve('still open after 3 s'), 3000);
   });
