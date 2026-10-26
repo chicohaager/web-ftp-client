@@ -63,29 +63,30 @@
         window.location.href = target;
       }
 
+      // The app runs on another port, i.e. another origin, and sends no CORS headers: an XMLHttpRequest
+      // there always fails in the browser, even when the app answers. A no-cors fetch resolves on any
+      // HTTP answer (opaque, nothing is read) and rejects only when nothing answers on the port.
       function probe() {
         attempts++;
-        var xhr = new XMLHttpRequest();
-        xhr.timeout = 1800;
-        xhr.open('GET', target + '?_ping=' + Date.now(), true);
-        xhr.onload = function () {
-          status.innerHTML = 'Service ready — launching…';
-          setTimeout(openTarget, 200);
-        };
-        xhr.onerror = xhr.ontimeout = function () {
-          if (attempts < maxAttempts) {
-            status.innerHTML = '<span class="spinner"></span>Service is starting — attempt ' + attempts + ' of ' + maxAttempts;
-            setTimeout(probe, 2000);
-          } else {
-            status.innerHTML = 'Service did not start in time.';
-            launch.textContent = 'Try opening manually';
-            launch.style.display = 'inline-block';
-          }
-        };
-        try { xhr.send(); } catch (e) {
-          status.innerHTML = 'Unable to probe service — click below to try directly.';
-          launch.style.display = 'inline-block';
-        }
+        var ctrl = window.AbortController ? new AbortController() : null;
+        var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 1800);
+        fetch(target + '?_ping=' + Date.now(), { mode: 'no-cors', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+          .then(function () {
+            clearTimeout(timer);
+            status.innerHTML = 'Service ready — launching…';
+            setTimeout(openTarget, 200);
+          })
+          .catch(function () {
+            clearTimeout(timer);
+            if (attempts < maxAttempts) {
+              status.innerHTML = '<span class="spinner"></span>Service is starting — attempt ' + attempts + ' of ' + maxAttempts;
+              setTimeout(probe, 2000);
+            } else {
+              status.innerHTML = 'Service did not start in time.';
+              launch.textContent = 'Try opening manually';
+              launch.style.display = 'inline-block';
+            }
+          });
       }
 
       probe();
