@@ -1,6 +1,6 @@
 #!/bin/bash
 # Everything that must pass before a commit, a PR or an image build:
-# type-check, build, dependency audit, folder check, passive FTP, sign-in, HTTPS, real FTP/SFTP servers, browser.
+# type-check, build, dependency audit, folder check, passive FTP, sign-in, HTTPS, real FTP/SFTP servers, browser, dashboard tile.
 # Needs Docker (test servers) and Python Playwright (browser test).
 #   bash scripts/check.sh        exit 0 = all passed
 set -u
@@ -20,6 +20,7 @@ step "sign-in" node tools/test-auth.mjs
 step "HTTPS" node tools/test-tls.mjs
 step "real FTP/SFTP servers" bash tools/smoke-remote.sh
 step "browser sign-in" python3 tools/e2e-signin.py
+step "dashboard tile, fresh browser" python3 tools/e2e-tile.py
 if [ ${#failed[@]} -eq 0 ]; then echo "✓ check: all steps passed"; exit 0; fi
 echo "✗ check: ${#failed[@]} step(s) failed: ${failed[*]}"
 exit 1

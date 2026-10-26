@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import https from 'node:https';
 import http from 'node:http';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import tls from 'node:tls';
@@ -43,6 +44,43 @@ async function start(env = {}) {
   }
   throw new Error('backend did not start:\n' + proc.log);
 }
+// start that must fail: returns exit code and log
+async function startFails(env = {}) {
+  const p = spawn('node', [path.join(backend, 'dist/index.js')], {
+    env: { ...process.env, PORT: String(PORT), DATA_DIR: path.join(tmp, 'data'), APP_DATA: appData, ...env },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let log = '';
+  p.stdout.on('data', (d) => { log += d; });
+  p.stderr.on('data', (d) => { log += d; });
+  const timer = setTimeout(() => p.kill('SIGTERM'), 8000);
+  const rc = await new Promise((r) => p.once('exit', (code) => r(code)));
+  clearTimeout(timer);
+  return { rc, log };
+}
+// raw request line on the plain-HTTP side (for the absolute form a client library would not send)
+function raw(text) {
+  return new Promise((resolve, reject) => {
+    const s = net.connect(PORT, '127.0.0.1', () => s.write(text));
+    let data = '';
+    s.on('data', (d) => { data += d; });
+    s.on('end', () => resolve(data));
+    s.on('error', reject);
+    setTimeout(() => { s.destroy(); resolve(data); }, 3000);
+  });
+}
+// the exact node one-liner `sudo web-ftp-client tls-fingerprint` runs in the container, taken from the CLI script
+function cliFingerprint() {
+  const cli = fs.readFileSync(path.join(root, 'zpkg/web-ftp-client-cli.sh'), 'utf8');
+  const m = cli.match(/tls-fingerprint\)[\s\S]*?docker exec web-ftp-client node -e "([^"]+)"/);
+  if (!m) return 'one-liner not found in the CLI';
+  try {
+    return execFileSync('node', ['-e', m[1]], { env: { ...process.env, PORT: String(PORT) }, encoding: 'utf8' }).trim();
+  } catch (e) {
+    return `rc ${e.status}`;
+  }
+}
+
 async function stop() {
   proc.kill('SIGTERM');
   await new Promise((r) => proc.once('exit', r));
@@ -82,13 +120,14 @@ process.on('uncaughtException', async (err) => {
 
 try {
   // 1 first start: self-signed certificate made and kept
-  await start();
+  await start({ TLS_FIRST_BYTE_MS: '1000' });
   const keyFile = path.join(appData, 'tls/key.pem');
   const certFile = path.join(appData, 'tls/cert.pem');
   check(fs.existsSync(certFile) && (fs.statSync(keyFile).mode & 0o777) === 0o600, 'self-signed certificate made, key 0600');
   const fp1 = new crypto.X509Certificate(fs.readFileSync(certFile)).fingerprint256;
   check(proc.log.includes(fp1), 'fingerprint in the log');
   check(await peerFingerprint() === fp1, 'the port serves that certificate');
+  check(cliFingerprint() === fp1, 'CLI tls-fingerprint one-liner prints the served certificate', `(got ${cliFingerprint()})`);
 
   // 2 HTTPS serves the app
   let r = await req('https', 'GET', '/');
@@ -99,6 +138,18 @@ try {
   // 3 plain HTTP: /healthz only, everything else redirected, a sign-in in clear never handled
   r = await req('http', 'GET', '/healthz');
   check(r.status === 200 && r.body === 'ok', 'HTTP /healthz → 200 ok (for the tile probe)');
+  r = await req('http', 'GET', '/healthz?_ping=1730000000000');
+  check(r.status === 200 && r.body === 'ok', 'HTTP /healthz?_ping=<time> (what the tile asks) → 200 ok', `(got ${r.status} ${r.headers.location || ''})`);
+  let rawAnswer = await raw(`GET http://127.0.0.1:${PORT}/some/page?x=1 HTTP/1.1\r\nHost: 127.0.0.1:${PORT}\r\nConnection: close\r\n\r\n`);
+  check(rawAnswer.toLowerCase().includes(`location: https://127.0.0.1:${PORT}/some/page?x=1`), 'absolute-form request → 308 keeps path and query', `(got ${rawAnswer.split('\r\n').slice(0, 3).join(' | ')})`);
+  const silent = await new Promise((resolve) => {
+    const t0 = Date.now();
+    const s = net.connect(PORT, '127.0.0.1');
+    s.on('close', () => resolve(Date.now() - t0));
+    s.on('error', () => {});
+    setTimeout(() => { s.destroy(); resolve(-1); }, 4000);
+  });
+  check(silent > 0 && silent < 3000, 'a connection that never sends is closed (TLS_FIRST_BYTE_MS=1000)', `(closed after ${silent} ms, -1 = still open after 4 s)`);
   r = await req('http', 'GET', '/some/page?x=1', { headers: { Host: `127.0.0.1:${PORT}` } });
   check(r.status === 308 && r.headers.location === `https://127.0.0.1:${PORT}/some/page?x=1`, 'HTTP page → 308 to the same path on HTTPS', `(got ${r.status} ${r.headers.location})`);
   const before = proc.log;
@@ -113,6 +164,8 @@ try {
   const setCookie = [].concat(r.headers['set-cookie'] || []).join(';');
   check(r.status === 200 && /;\s*Secure/i.test(setCookie) && /HttpOnly/i.test(setCookie), 'setup over HTTPS: cookie Secure + HttpOnly', `(got ${r.status})`);
   const cookie = setCookie.split(';')[0];
+  r = await req('https', 'POST', '/api/auth/logout', { headers: { Origin: `http://127.0.0.1:${PORT}`, Cookie: cookie } });
+  check(r.status === 403, 'over HTTPS a page from http://<same host:port> is another origin → 403', `(got ${r.status})`);
   const wss = await new Promise((resolve) => {
     const ws = new WebSocket(`wss://127.0.0.1:${PORT}/ws`, { headers: { Cookie: cookie, Origin: `https://127.0.0.1:${PORT}` }, rejectUnauthorized: false });
     ws.on('open', () => { ws.close(); resolve('open'); });
@@ -125,6 +178,15 @@ try {
   await stop(); await start();
   check(await peerFingerprint() === fp1, 'after restart: the same certificate');
 
+  // 5b a broken self-signed pair (empty cert.pem, e.g. a first start cut off) is replaced, no restart loop
+  await stop();
+  fs.writeFileSync(certFile, '');
+  await start();
+  const fpNew = await peerFingerprint();
+  check(/making a new self-signed certificate/.test(proc.log) && fpNew !== fp1 && fpNew === new crypto.X509Certificate(fs.readFileSync(certFile)).fingerprint256,
+    'empty cert.pem → new self-signed pair, served and logged');
+  check((fs.statSync(keyFile).mode & 0o777) === 0o600 && !fs.existsSync(keyFile + '.new'), 'new pair: key 0600, no temp files left');
+
   // 6 own certificate via TLS_CERT/TLS_KEY
   await stop();
   const own = path.join(tmp, 'own');
@@ -133,11 +195,24 @@ try {
   const fpOwn = new crypto.X509Certificate(fs.readFileSync(path.join(own, 'c.pem'))).fingerprint256;
   await start({ TLS_CERT: path.join(own, 'c.pem'), TLS_KEY: path.join(own, 'k.pem') });
   check(await peerFingerprint() === fpOwn && fpOwn !== fp1, 'TLS_CERT/TLS_KEY: the own certificate is served');
+  check(cliFingerprint() === fpOwn, 'CLI tls-fingerprint with an own certificate: prints the served one');
+  await stop();
+  let f = await startFails({ TLS_CERT: path.join(own, 'c.pem') });
+  check(f.rc !== 0 && /TLS_CERT and TLS_KEY must be set together/.test(f.log), 'only TLS_CERT set → refuses to start, says why', `(rc ${f.rc})`);
+  f = await startFails({ TLS_CERT: path.join(own, 'c.pem'), TLS_KEY: keyFile });
+  check(f.rc !== 0 && /does not belong/.test(f.log), 'TLS_KEY of another certificate → refuses to start', `(rc ${f.rc})`);
+  f = await startFails({ TLS_CERT: '/nonexistent/c.pem', TLS_KEY: path.join(own, 'k.pem') });
+  check(f.rc !== 0 && /\/nonexistent\/c\.pem/.test(f.log), 'missing TLS_CERT file → refuses to start, names the file', `(rc ${f.rc})`);
+  await start();
 
   // 7 TLS=off: plain HTTP serves the app (for a proxy that does HTTPS)
   await stop(); await start({ TLS: 'off' });
   r = await req('http', 'GET', '/api/auth/status');
   check(r.status === 200 && /TLS off/.test(proc.log), 'TLS=off: plain HTTP serves the API, log says so');
+  check(cliFingerprint() !== fpOwn && !/^[0-9A-F:]{95}$/.test(cliFingerprint()), 'CLI tls-fingerprint with TLS off → no fingerprint (old cert.pem in the folder is not printed)', `(got ${cliFingerprint()})`);
+  await stop(); await start({ TLS: 'false' });
+  r = await req('http', 'GET', '/api/auth/status');
+  check(r.status === 200 && /TLS off/.test(proc.log), 'TLS=false also means plain HTTP');
 } catch (err) {
   bad(`test aborted: ${err.message}`);
 } finally {

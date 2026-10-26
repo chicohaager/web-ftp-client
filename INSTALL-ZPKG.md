@@ -126,8 +126,9 @@ created yourself can be handed over with
 `sudo chown 1000:1000 /DATA/AppData/web-ftp-client && sudo chmod 700 /DATA/AppData/web-ftp-client`.
 
 **The browser says the certificate changed** — the app makes a new self-signed
-certificate only when `tls/` in its data folder is missing (e.g. after deleting
-the data folder). Compare with `sudo web-ftp-client tls-fingerprint` before you
+certificate only when `tls/` in its data folder is missing or unusable (e.g.
+after deleting the data folder, or a first start cut off by a power loss; the
+log then says `[TLS] … making a new self-signed certificate`). Compare with `sudo web-ftp-client tls-fingerprint` before you
 accept it; if it does not match, someone else answers on that address.
 
 **`mkdir /root/.docker: read-only file system`** — Should not happen via the

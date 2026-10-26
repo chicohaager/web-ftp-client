@@ -9,7 +9,7 @@ import { filesRouter } from './routes/files.js';
 import { remoteRouter } from './routes/remote.js';
 import { setupTransferWs } from './ws/transfer-ws.js';
 import { tlsEnabled, loadTls, listenMixed, plainHandler } from './services/tls.js';
-import { requireAuth, sessionUser, sameOrigin, prepareSetup, status, setup, login, logout, changePassword } from './services/auth.js';
+import { requireAuth, sessionUser, sameOrigin, prepareSetup, status, setup, login, logout, changePassword, setProxyTrust } from './services/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -43,10 +43,18 @@ const wss = new WebSocketServer({
 });
 
 
-// Behind a reverse proxy (TRUST_PROXY=1, or a value Express understands, e.g. "loopback"): client address,
-// HTTPS (Secure cookie) and host come from the proxy's X-Forwarded-* headers. Off by default.
-if (process.env.TRUST_PROXY) {
-  app.set('trust proxy', /^\d+$/.test(process.env.TRUST_PROXY) ? Number(process.env.TRUST_PROXY) : process.env.TRUST_PROXY);
+// Behind a reverse proxy: TRUST_PROXY names the proxy's address(es) — "loopback", an IP or a subnet, comma-separated
+// (Express syntax). Only from those addresses do client address, HTTPS (Secure cookie) and host come from the
+// X-Forwarded-* headers. Off by default. A hop count ("1") or "true" is refused: port 8089 is reachable directly from
+// the LAN, so it would trust every client's own X-Forwarded-For and lift the lock after failed sign-ins.
+const TRUST_PROXY = (process.env.TRUST_PROXY || '').trim();
+if (TRUST_PROXY) {
+  if (/^\d+$/.test(TRUST_PROXY) || /^(true|yes|on)$/i.test(TRUST_PROXY)) {
+    console.error(`TRUST_PROXY=${TRUST_PROXY} refused: name the proxy's address instead (e.g. loopback, 172.16.0.0/12), see README`);
+    process.exit(1);
+  }
+  app.set('trust proxy', TRUST_PROXY);
+  setProxyTrust(app.get('trust proxy fn'));
 }
 
 // The app is never shown inside a frame (the ZimaOS tile navigates the top window to it): no clickjacking.

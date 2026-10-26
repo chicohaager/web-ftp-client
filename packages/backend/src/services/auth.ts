@@ -4,6 +4,7 @@ import path from 'path';
 import type { IncomingMessage } from 'http';
 import type { Request, Response, NextFunction } from 'express';
 import { getDb } from './db.js';
+import type { TLSSocket } from 'tls';
 
 // One account per installation. Until it exists, the app only offers the setup page, and creating the account
 // needs a one-time setup code: whoever reaches the port first must not be able to claim the app. The code is
@@ -194,17 +195,25 @@ function startSession(req: Request, res: Response, userId: number): void {
 // SameSite=Strict does not separate ports: every app on the same host counts as the same site. So any request
 // that changes something, and the WebSocket upgrade, must come from a page of this very origin.
 
-// Behind a reverse proxy that rewrites Host, set TRUST_PROXY (see README): then the host the browser used comes
-// from X-Forwarded-Host. Without TRUST_PROXY that header is ignored — anyone could send it.
-const TRUST_PROXY = !!process.env.TRUST_PROXY;
+// Behind a reverse proxy that rewrites Host, set TRUST_PROXY to the proxy's address (see README): then, for requests
+// from that address only, host and scheme the browser used come from X-Forwarded-Host/-Proto. Anyone else's
+// X-Forwarded-* headers are ignored — anyone could send them. index.ts hands over Express' compiled trust check.
+let trustsProxy: ((addr: string, hop: number) => boolean) | null = null;
+export function setProxyTrust(fn: (addr: string, hop: number) => boolean): void { trustsProxy = fn; }
 
 export function sameOrigin(req: IncomingMessage): boolean {
   const origin = req.headers.origin;
   if (!origin) return false;
-  const forwarded = TRUST_PROXY ? String(req.headers['x-forwarded-host'] || '').split(',')[0].trim() : '';
-  const host = forwarded || req.headers.host;
+  const peer = req.socket.remoteAddress;
+  const viaProxy = !!(trustsProxy && peer && trustsProxy(peer, 0));
+  const first = (name: string) => String(req.headers[name] || '').split(',')[0].trim();
+  const host = (viaProxy && first('x-forwarded-host')) || req.headers.host;
+  // the page must also use this scheme: over HTTPS an Origin http://<same host:port> is someone else's page
+  // (a proxy that sends no X-Forwarded-Proto leaves the scheme unknown, then only the host counts)
+  const scheme = viaProxy ? first('x-forwarded-proto') : ((req.socket as TLSSocket).encrypted ? 'https' : 'http');
   try {
-    return new URL(origin).host === host;
+    const u = new URL(origin);
+    return u.host === host && (!scheme || u.protocol === `${scheme}:`);
   } catch {
     return false;
   }
@@ -272,9 +281,10 @@ export function login(req: Request, res: Response): void {
   if (tooMany(req, res)) return;
   const username = field(req.body?.username).trim();
   const password = field(req.body?.password);
-  // user names compare without case: "Holgi" and "holgi" are the same account (26.10.2026, a sign-in failed on it)
-  const row = db().prepare('SELECT id, password_hash FROM users WHERE username = ? COLLATE NOCASE').get(username) as
-    { id: number; password_hash: string } | undefined;
+  // user names compare without case, also beyond ASCII ("Jörg" = "JÖRG"; SQLite's NOCASE folds only A-Z)
+  const wanted = username.toLowerCase();
+  const row = (db().prepare('SELECT id, username, password_hash FROM users').all() as
+    { id: number; username: string; password_hash: string }[]).find((u) => u.username.toLowerCase() === wanted);
   const good = verifyPassword(password, row?.password_hash ?? DUMMY_HASH) && !!row;
   if (!good) {
     recordFailure(req);
@@ -284,7 +294,7 @@ export function login(req: Request, res: Response): void {
   }
   failures.delete(clientKey(req));
   startSession(req, res, row!.id);
-  res.json({ ok: true, data: { username } });
+  res.json({ ok: true, data: { username: row!.username } });
 }
 
 export function logout(req: Request, res: Response): void {

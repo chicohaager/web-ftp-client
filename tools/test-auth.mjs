@@ -129,7 +129,7 @@ try {
   r = await call('POST', '/api/auth/login', { headers: ORIGIN, body: { username: 'nobody', password: 'wrong' } });
   check(r.status === 401 && r.json?.error === 'Wrong user name or password', 'unknown user → same 401 text');
   r = await call('POST', '/api/auth/login', { headers: ORIGIN, body: { username: ' ADMIN ', password: 'correct horse battery' } });
-  check(r.status === 200, 'sign in with the password, user name in other case and with spaces → 200', `(got ${r.status})`);
+  check(r.status === 200 && r.json?.data?.username === 'admin', 'sign in with the user name in other case and with spaces → 200, answers the stored name', `(got ${r.status} ${r.json?.data?.username})`);
   const secondCookie = cookieOf(r.setCookie);
 
   // 5 sign-out ends only that session — and closes its open WebSocket
@@ -182,17 +182,28 @@ try {
   check(r.json?.data?.setupRequired === true && r.json?.data?.signedIn === false, 'after reset: setup again, old session dead');
   const code2 = fs.readFileSync(codeFile, 'utf8').trim();
   check(code2 && code2 !== code, 'after reset: a new setup code');
-  r = await call('POST', '/api/auth/setup', { headers: ORIGIN, body: { username: 'admin2', password: 'another long password', setupCode: code2 } });
+  r = await call('POST', '/api/auth/setup', { headers: ORIGIN, body: { username: 'Jörg', password: 'another long password', setupCode: code2 } });
   const fifthCookie = cookieOf(r.setCookie);
+  r = await call('POST', '/api/auth/login', { headers: ORIGIN, body: { username: 'JÖRG', password: 'another long password' } });
+  check(r.status === 200 && r.json?.data?.username === 'Jörg', 'user name beyond ASCII in other case (JÖRG for Jörg) → 200', `(got ${r.status})`);
   r = await call('GET', '/api/connections', { cookie: fifthCookie });
   check(JSON.stringify(r.json).includes('keep me'), 'after reset: the saved connection is still there');
 
   // 9 behind a reverse proxy that rewrites Host: without TRUST_PROXY refused, with it the forwarded host counts
   const viaProxy = { Origin: 'https://ftp.example.org', 'X-Forwarded-Host': 'ftp.example.org', 'X-Forwarded-Proto': 'https' };
-  r = await call('POST', '/api/auth/login', { headers: viaProxy, body: { username: 'admin2', password: 'another long password' } });
+  r = await call('POST', '/api/auth/login', { headers: viaProxy, body: { username: 'Jörg', password: 'another long password' } });
   check(r.status === 403, 'proxy headers without TRUST_PROXY are ignored → 403', `(got ${r.status})`);
-  await stop(); await start({ TRUST_PROXY: '1' });
-  r = await call('POST', '/api/auth/login', { headers: viaProxy, body: { username: 'admin2', password: 'another long password' } });
+  await stop(); await start({ TRUST_PROXY: '10.9.9.9' });
+  r = await call('POST', '/api/auth/login', { headers: viaProxy, body: { username: 'Jörg', password: 'another long password' } });
+  check(r.status === 403, 'TRUST_PROXY names another address: this client\'s proxy headers are ignored → 403', `(got ${r.status})`);
+  await stop();
+  const hop = spawn('node', [path.join(backend, 'dist/index.js')], { env: { ...process.env, PORT: String(PORT), APP_DATA: appData, DATA_DIR: path.join(tmp, 'data'), TRUST_PROXY: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let hopLog = '';
+  hop.stderr.on('data', (d) => { hopLog += d; });
+  const hopRc = await new Promise((res) => { const t = setTimeout(() => hop.kill('SIGTERM'), 8000); hop.once('exit', (c) => { clearTimeout(t); res(c); }); });
+  check(hopRc === 1 && /TRUST_PROXY=1 refused/.test(hopLog), 'TRUST_PROXY=1 (hop count) → refuses to start', `(rc ${hopRc})`);
+  await start({ TRUST_PROXY: 'loopback' });
+  r = await call('POST', '/api/auth/login', { headers: viaProxy, body: { username: 'Jörg', password: 'another long password' } });
   check(r.status === 200 && /;\s*Secure/i.test(r.setCookie), 'with TRUST_PROXY: sign-in through the proxy, cookie Secure', `(got ${r.status})`);
 } catch (err) {
   bad(`test aborted: ${err.message}`);
