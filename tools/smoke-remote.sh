@@ -25,7 +25,7 @@ trap cleanup EXIT
 [ -f packages/backend/dist/index.js ] || { echo "packages/backend/dist/index.js missing - run pnpm run build"; exit 2; }
 
 docker run -d --name "$FTP" -p 127.0.0.1:2121:21 -p 127.0.0.1:21000-21010:21000-21010 \
-  -e USERS="smoke|smoke-pass-1|/home/smoke" -e ADDRESS=127.0.0.1 -e MIN_PORT=21000 -e MAX_PORT=21010 \
+  -e USERS="smoke|smoke-pass-1|/srv/ftp" -e ADDRESS=127.0.0.1 -e MIN_PORT=21000 -e MAX_PORT=21010 \
   delfer/alpine-ftp-server:latest > /dev/null || { echo "FTP server did not start"; exit 2; }
 docker run -d --name "$SFTP" -p 127.0.0.1:2222:22 atmoz/sftp:alpine "smoke:smoke-pass-1:::upload" > /dev/null \
   || { echo "SFTP server did not start"; exit 2; }
@@ -68,7 +68,7 @@ print(m[-1]['status'] if m else '')" "$2" "$3")
 
 for proto in ftp sftp; do
   port=2121; [ "$proto" = sftp ] && port=2222
-  rdir=/home/smoke; [ "$proto" = sftp ] && rdir=/upload   # the FTP server does not chroot: "/" is its real root
+  rdir=/srv/ftp; [ "$proto" = sftp ] && rdir=/upload   # the FTP server does not chroot: "/" is its real root
   r=$(api POST /remote/connect "{\"host\":\"127.0.0.1\",\"port\":$port,\"protocol\":\"$proto\",\"username\":\"smoke\",\"password\":\"smoke-pass-1\"}")
   sid=$(echo "$r" | field "d['data']['sessionId'] if d.get('ok') else ''" 2> /dev/null)
   if [ -n "$sid" ]; then ok "$proto: connect"; else bad "$proto: connect: $r"; continue; fi
