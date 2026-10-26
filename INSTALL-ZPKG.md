@@ -55,9 +55,17 @@ it, saved connection passwords can no longer be decrypted after the update: ente
 them again in the bookmarks. `WEBUI_PORT` from that file no longer applies; the app
 listens on 8089.
 
-## First visit: create the account
+## First visit: certificate, then the account
 
-Open the tile. The setup page asks for a setup code — print it with
+Open the tile. It opens `https://<host>:8089`. The app uses a self-signed
+certificate, so the browser warns once per device. Compare the fingerprint the
+browser shows (certificate details, SHA-256) with
+
+```bash
+sudo web-ftp-client tls-fingerprint
+```
+
+and accept the certificate if they match. The setup page asks for a setup code — print it with
 
 ```bash
 sudo web-ftp-client setup-code
@@ -73,7 +81,7 @@ after that the app shows its sign-in page.
 sudo web-ftp-client status
 
 # HTTP responding?
-curl -sS -o /dev/null -w "%{http_code}\n" http://localhost:8089/
+curl -sS -k -o /dev/null -w "%{http_code}\n" https://localhost:8089/
 # → 200
 
 # Dashboard tile visible?
@@ -115,7 +123,12 @@ port 8089 for two minutes: the compose stack isn't running.
 belongs to someone other than root or uid 1000, or is writable by others. The line
 above it names which. Check with `stat /DATA/AppData/web-ftp-client`; a folder you
 created yourself can be handed over with
-`sudo chown 1000:1000 /DATA/AppData/web-ftp-client && sudo chmod 755 /DATA/AppData/web-ftp-client`.
+`sudo chown 1000:1000 /DATA/AppData/web-ftp-client && sudo chmod 700 /DATA/AppData/web-ftp-client`.
+
+**The browser says the certificate changed** — the app makes a new self-signed
+certificate only when `tls/` in its data folder is missing (e.g. after deleting
+the data folder). Compare with `sudo web-ftp-client tls-fingerprint` before you
+accept it; if it does not match, someone else answers on that address.
 
 **`mkdir /root/.docker: read-only file system`** — Should not happen via the
 zpkg CLI (it pre-sets `DOCKER_CONFIG=/DATA/.docker`). If you see this, you

@@ -1,5 +1,6 @@
 import express from 'express';
-import { createServer } from 'http';
+import http, { createServer } from 'http';
+import https from 'https';
 import { WebSocketServer } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,22 +8,12 @@ import { connectionsRouter } from './routes/connections.js';
 import { filesRouter } from './routes/files.js';
 import { remoteRouter } from './routes/remote.js';
 import { setupTransferWs } from './ws/transfer-ws.js';
+import { tlsEnabled, loadTls, listenMixed, plainHandler } from './services/tls.js';
 import { requireAuth, sessionUser, sameOrigin, prepareSetup, status, setup, login, logout, changePassword } from './services/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
-const server = createServer(app);
-// Transfer events only for a signed-in browser on this origin (the events name files and paths).
-const wss = new WebSocketServer({
-  server,
-  path: '/ws',
-  verifyClient: (info, done) => {
-    if (!sameOrigin(info.req)) return done(false, 403, 'Forbidden');
-    if (!sessionUser(info.req)) return done(false, 401, 'Unauthorized');
-    done(true);
-  },
-});
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', '..', 'data');
@@ -35,6 +26,22 @@ const APP_DATA = process.env.APP_DATA || path.join(__dirname, '..', 'data');
 // password would silently fail to decrypt after a restart from a different cwd.
 // Publish the resolved value so there is exactly one source of truth.
 process.env.APP_DATA = APP_DATA;
+
+// HTTPS unless TLS=off (services/tls.ts); the WebSocket runs on the same server.
+const tls = tlsEnabled() ? loadTls(APP_DATA) : null;
+const server = tls ? https.createServer({ key: tls.key, cert: tls.cert }, app) : createServer(app);
+
+// Transfer events only for a signed-in browser on this origin (the events name files and paths).
+const wss = new WebSocketServer({
+  server,
+  path: '/ws',
+  verifyClient: (info, done) => {
+    if (!sameOrigin(info.req)) return done(false, 403, 'Forbidden');
+    if (!sessionUser(info.req)) return done(false, 401, 'Unauthorized');
+    done(true);
+  },
+});
+
 
 // Behind a reverse proxy (TRUST_PROXY=1, or a value Express understands, e.g. "loopback"): client address,
 // HTTPS (Secure cookie) and host come from the proxy's X-Forwarded-* headers. Off by default.
@@ -114,8 +121,12 @@ setupTransferWs(wss);
 
 prepareSetup();
 
-server.listen(PORT, () => {
+const started = () => {
   console.log(`Web FTP Client v0.2.0`);
-  console.log(`Running on http://localhost:${PORT}`);
+  console.log(`Running on ${tls ? 'https' : 'http'}://localhost:${PORT}`);
   console.log(`Data directory: ${DATA_DIR}`);
-});
+  if (tls) console.log(`TLS certificate SHA-256 ${tls.fingerprint}${tls.selfSigned ? ' (self-signed: compare it with the browser warning)' : ''}`);
+  else console.log('TLS off: passwords and session travel unencrypted unless a proxy in front does HTTPS');
+};
+if (tls) listenMixed(PORT, server, http.createServer(plainHandler), started);
+else server.listen(PORT, started);

@@ -33,7 +33,7 @@ docker run -d --name "$SFTP" -p 127.0.0.1:2222:22 atmoz/sftp@sha256:43dd1c023cf1
 mkdir -p "$T/data/up" "$T/data/down" "$T/app"
 head -c 300000 /dev/urandom > "$T/data/up/smoke.bin"
 WANT=$(sha256sum < "$T/data/up/smoke.bin" | cut -c1-64)
-PORT=$P DATA_DIR="$T/data" APP_DATA="$T/app" node packages/backend/dist/index.js > "$T/backend.log" 2>&1 &
+PORT=$P DATA_DIR="$T/data" APP_DATA="$T/app" TLS=off node packages/backend/dist/index.js > "$T/backend.log" 2>&1 &
 BPID=$!
 for _ in $(seq 1 50); do curl -s -o /dev/null "http://127.0.0.1:$P/" && break; sleep 0.2; done
 kill -0 "$BPID" 2> /dev/null || { echo "backend did not start:"; cat "$T/backend.log"; exit 2; }

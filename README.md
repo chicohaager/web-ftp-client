@@ -28,7 +28,7 @@ The `start.sh` wrapper auto-detects ZimaOS, exports `DOCKER_CONFIG=/DATA/.docker
 (required because ZimaOS has a read-only root filesystem), seeds sensible
 defaults for `AppID`/`PUID`/`PGID`/`TZ`, and runs `docker compose up -d --build`.
 
-Access at `http://<zima-host>:8089`.
+Access at `https://<zima-host>:8089` (see *HTTPS* below for the certificate warning on the first visit).
 
 Alternatively, install the zpkg module (`web-ftp-client.raw`) — see
 [INSTALL-ZPKG.md](INSTALL-ZPKG.md).
@@ -40,7 +40,7 @@ cp .env.example .env   # optional: edit values
 docker compose up -d --build
 ```
 
-Access at `http://localhost:8089`.
+Access at `https://localhost:8089`.
 
 ### Sign-in
 
@@ -58,15 +58,36 @@ Five wrong attempts from one address lock it for 15 minutes. Forgot the password
 packages/backend/dist/reset-account.js`, then restart the container) removes the
 account — saved connections stay — and the next start prints a new setup code.
 
-### Behind a reverse proxy (HTTPS)
+### HTTPS
 
-On the LAN the app speaks plain HTTP on port 8089: password and session cookie
-travel unencrypted. For access from outside, put an HTTPS reverse proxy in front
-and set `TRUST_PROXY=1` for the container (one proxy hop; Express syntax such as
-`loopback` also works). Then the app takes the client address (for the lock after
-failed attempts), HTTPS (the cookie becomes `Secure`) and the host the browser used
-(`X-Forwarded-Host`, for the origin check) from the proxy. Without `TRUST_PROXY`
-these headers are ignored — anyone could send them.
+The app speaks HTTPS on port 8089, so password, session cookie and files are
+encrypted on the network. Plain HTTP on the same port only redirects to HTTPS
+(and answers `/healthz` for the ZimaOS tile) — a sign-in sent in clear is never
+handled.
+
+Without your own certificate the app makes a **self-signed** one on the first
+start (kept in the data folder). The browser warns once per device: compare the
+SHA-256 fingerprint it shows with `sudo web-ftp-client tls-fingerprint` (ZimaOS)
+or the `TLS certificate SHA-256` line in `docker logs web-ftp-client`, then
+accept it. Same fingerprint means nobody sits in between.
+
+Options (container environment):
+
+- `TLS_CERT` / `TLS_KEY` — paths to your own certificate and key (e.g. mounted
+  from your reverse proxy or Let's Encrypt); no warning then.
+- `TLS_HOSTNAMES` — extra host names/IPs written into the self-signed
+  certificate (comma-separated); takes effect for a new certificate (delete
+  `tls/` in the data folder).
+- `TLS=off` — plain HTTP, only behind a reverse proxy that does HTTPS.
+
+### Behind a reverse proxy
+
+Set `TLS=off` if the proxy talks plain HTTP to the app (or keep TLS and let the
+proxy accept the app's certificate), and `TRUST_PROXY=1` (one proxy hop; Express
+syntax such as `loopback` also works). Then the app takes the client address (for
+the lock after failed attempts), HTTPS (the cookie becomes `Secure`) and the host
+the browser used (`X-Forwarded-Host`, for the origin check) from the proxy.
+Without `TRUST_PROXY` these headers are ignored — anyone could send them.
 
 ### Development
 
@@ -75,7 +96,7 @@ pnpm install
 pnpm dev
 ```
 
-Backend runs on `http://localhost:3000`, Frontend dev server on `http://localhost:5173` (proxied).
+Backend runs on `http://localhost:3000` (`pnpm dev` sets `TLS=off`), Frontend dev server on `http://localhost:5173` (proxied).
 
 ## Tech Stack
 

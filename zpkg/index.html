@@ -44,7 +44,11 @@
     (function () {
       var host = window.location.hostname || 'localhost';
       var port = 8089;
-      var target = 'http://' + host + ':' + port + '/';
+      // The app speaks HTTPS; plain HTTP on the same port answers only /healthz (and redirects the rest).
+      // The probe asks /healthz over HTTP, because a self-signed certificate would fail any fetch before the
+      // user has accepted it once; the tile then opens the HTTPS address.
+      var target = 'https://' + host + ':' + port + '/';
+      var health = 'http://' + host + ':' + port + '/healthz';
       var launch = document.getElementById('launch');
       var status = document.getElementById('status');
       launch.href = target;
@@ -70,7 +74,7 @@
         attempts++;
         var ctrl = window.AbortController ? new AbortController() : null;
         var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 1800);
-        fetch(target + '?_ping=' + Date.now(), { mode: 'no-cors', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+        fetch(health + '?_ping=' + Date.now(), { mode: 'no-cors', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
           .then(function () {
             clearTimeout(timer);
             status.innerHTML = 'Service ready — launching…';

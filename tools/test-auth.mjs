@@ -28,7 +28,7 @@ const check = (cond, m, detail = '') => (cond ? ok(m) : bad(`${m} ${detail}`));
 let proc;
 async function start(extraEnv = {}) {
   proc = spawn('node', [path.join(backend, 'dist/index.js')], {
-    env: { ...process.env, PORT: String(PORT), DATA_DIR: path.join(tmp, 'data'), APP_DATA: appData, ...extraEnv },
+    env: { ...process.env, PORT: String(PORT), DATA_DIR: path.join(tmp, 'data'), APP_DATA: appData, TLS: 'off', ...extraEnv },   // sign-in logic only; TLS: test-tls.mjs
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   proc.log = '';

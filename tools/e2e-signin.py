@@ -16,7 +16,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
 PORT = 3997
-BASE = f"http://127.0.0.1:{PORT}"
+BASE = f"https://127.0.0.1:{PORT}"   # the app speaks HTTPS (self-signed in the test)
 shots = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(tempfile.mkdtemp(prefix="wfc-e2e-shots-"))
 shots.mkdir(parents=True, exist_ok=True)
 fails = 0
@@ -37,14 +37,14 @@ with tempfile.TemporaryDirectory(prefix="wfc-e2e-") as tmp:
     try:
         for _ in range(50):
             try:
-                urllib.request.urlopen(BASE + "/api/auth/status", timeout=1)
+                urllib.request.urlopen(f"http://127.0.0.1:{PORT}/healthz", timeout=1)
                 break
             except OSError:
                 time.sleep(0.1)
         code = (app / "setup-code").read_text().strip()
         with sync_playwright() as p:
             browser = p.chromium.launch()
-            page = browser.new_page(viewport={"width": 1280, "height": 800})
+            page = browser.new_page(viewport={"width": 1280, "height": 800}, ignore_https_errors=True)
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
             page.goto(BASE)
