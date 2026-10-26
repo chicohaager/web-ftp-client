@@ -8,7 +8,18 @@ APP_DIR="/DATA/AppData/${APP_NAME}"
 SRC_DIR="/usr/lib/${APP_NAME}"
 COMPOSE="${APP_DIR}/docker-compose.yml"
 
+GUARD="/usr/libexec/${APP_NAME}/appdata-guard.sh"
+
 export DOCKER_CONFIG="${DOCKER_CONFIG:-/DATA/.docker}"
+
+# Root reads docker-compose.yml, the Dockerfile (and an .env, if there is one) from APP_DIR and builds from it. /DATA/AppData is
+# writable by everyone on ZimaOS 1.8 (0777 without the sticky bit) and the /DATA share is writable over
+# SMB, so another user could rename this folder and put one of their own in its place. Before any
+# command touches APP_DIR, lintux-modkit's appdata-guard.sh sets the sticky bit on /DATA/AppData and
+# refuses a folder that is a symlink, does not belong to root or is writable by others.
+guard() {
+  /bin/sh "${GUARD}" "${APP_DIR}" || { echo "Refusing to use ${APP_DIR} (see the message above)." >&2; exit 1; }
+}
 
 ensure_installed() {
   if [ ! -f "${COMPOSE}" ]; then
@@ -17,6 +28,10 @@ ensure_installed() {
     cp -a "${SRC_DIR}/." "${APP_DIR}/"
   fi
 }
+
+case "${1:-help}" in
+  install|up|start|stop|restart|down|uninstall|logs|status) guard ;;
+esac
 
 case "${1:-help}" in
   install|up)
@@ -50,7 +65,7 @@ case "${1:-help}" in
     docker compose logs -f --tail=200
     ;;
   status)
-    cd "${APP_DIR}" 2>/dev/null && docker compose ps || echo "Not installed. Run: web-ftp-client install"
+    if [ -f "${COMPOSE}" ]; then cd "${APP_DIR}" && docker compose ps; else echo "Not installed. Run: web-ftp-client install"; fi
     ;;
   help|*)
     cat <<EOF
