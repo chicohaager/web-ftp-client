@@ -55,6 +55,17 @@ it, saved connection passwords can no longer be decrypted after the update: ente
 them again in the bookmarks. `WEBUI_PORT` from that file no longer applies; the app
 listens on 8089.
 
+## First visit: create the account
+
+Open the tile. The setup page asks for a setup code — print it with
+
+```bash
+sudo web-ftp-client setup-code
+```
+
+then choose user name and password (at least 10 characters). The code works once;
+after that the app shows its sign-in page.
+
 ## Verify
 
 ```bash
@@ -80,6 +91,8 @@ web-ftp-client down       # docker compose down (keeps volumes)
 web-ftp-client uninstall  # docker compose down -v (drops volumes)
 web-ftp-client logs       # Follow container logs
 web-ftp-client status     # docker compose ps
+web-ftp-client setup-code # One-time code for creating the account (first visit)
+web-ftp-client reset-account  # Forgot the password: remove the account, saved connections stay
 ```
 
 ## Uninstall

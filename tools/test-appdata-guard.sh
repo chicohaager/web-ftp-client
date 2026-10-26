@@ -21,7 +21,7 @@ if [ "$n" = 0 ]; then ok "nothing in the CLI reads compose, Dockerfile or .env f
 n=$(grep -cE '^ *docker compose' "$C")
 if [ "$n" = 1 ]; then ok "exactly one docker compose call (inside compose())"; else bad "$n docker compose calls — one bypasses compose()"; fi
 # the guard runs for every command that lets dockerd mount APP_DIR, before it
-if grep -q '^  install|up|start|restart) prepare_data ;;$' "$C"; then ok "prepare_data runs for install|up|start|restart"; else bad "prepare_data not called for the commands that start the container"; fi
+if grep -q '^  install|up|start|restart|reset-account) prepare_data ;;$' "$C"; then ok "prepare_data runs for install|up|start|restart|reset-account"; else bad "prepare_data not called for the commands that start the container"; fi
 if grep -q 'APPDATA_GUARD_UID="${DATA_UID}" APPDATA_GUARD_PATH_UID=0 /bin/sh "${GUARD}" --no-create "${APP_DIR}"' "$C"; then ok "guard trusts the container user for the folder, root for the path"; else bad "guard call in prepare_data"; fi
 # 2 the image carries the guard where the CLI looks for it
 # shellcheck disable=SC2016  # the literal line of the packaging script, variables unexpanded

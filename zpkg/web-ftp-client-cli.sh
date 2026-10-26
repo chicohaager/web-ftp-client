@@ -51,7 +51,7 @@ compose() {
 }
 
 case "${1:-help}" in
-  install|up|start|restart) prepare_data ;;
+  install|up|start|restart|reset-account) prepare_data ;;
 esac
 
 case "${1:-help}" in
@@ -80,6 +80,17 @@ case "${1:-help}" in
   status)
     compose ps
     ;;
+  reset-account)
+    # forgotten password: drop the account inside the container, restart for a new setup code
+    docker exec web-ftp-client node packages/backend/dist/reset-account.js
+    compose restart
+    echo "Now: sudo web-ftp-client setup-code"
+    ;;
+  setup-code)
+    # read inside the container (as its user), not from APP_DIR on the host
+    docker exec web-ftp-client cat /app/data/setup-code 2> /dev/null \
+      || { echo "No setup code: the account exists already, or the app is not running (sudo web-ftp-client status)." >&2; exit 1; }
+    ;;
   help|*)
     cat <<EOF
 web-ftp-client — ZimaOS control CLI
@@ -96,6 +107,8 @@ Commands:
   uninstall  docker compose down -v (drops volumes)
   logs       Follow combined container logs
   status     docker compose ps
+  setup-code Print the one-time code that creates the account on the first visit
+  reset-account  Forgot the password: remove the account (saved connections stay)
   help       Show this message
 EOF
     ;;

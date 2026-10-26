@@ -42,6 +42,22 @@ docker compose up -d --build
 
 Access at `http://localhost:8089`.
 
+### Sign-in
+
+The app has one account, protected by a password. On the first visit it shows a
+setup page; creating the account needs a one-time **setup code**, so nobody else
+who reaches the port first can claim the app:
+
+- ZimaOS (zpkg module): `sudo web-ftp-client setup-code`
+- Docker: `docker logs web-ftp-client` shows `Setup code: …`
+
+After that, the sign-in page asks for user name and password. A session lasts
+7 days; *Change password* (user menu, top right) signs out every other browser.
+Five wrong attempts from one address lock it for 15 minutes. Forgot the password?
+`sudo web-ftp-client reset-account` (Docker: `docker exec web-ftp-client node
+packages/backend/dist/reset-account.js`, then restart the container) removes the
+account — saved connections stay — and the next start prints a new setup code.
+
 ### Development
 
 ```bash
