@@ -30,9 +30,26 @@ sudo systemctl enable --now web-ftp-client.service
 sudo web-ftp-client install
 ```
 
-The first start copies the compose source to `/DATA/AppData/web-ftp-client/`,
-then runs `docker compose up -d --build` with `DOCKER_CONFIG=/DATA/.docker`
-pre-set. Initial build takes 2–5 minutes.
+The start builds and runs the stack from the read-only module image
+(`/usr/lib/web-ftp-client/`) with `DOCKER_CONFIG=/DATA/.docker` pre-set. Initial
+build takes 2–5 minutes. `/DATA/AppData/web-ftp-client/` only holds the app's data
+(its database); it belongs to the container user (uid 1000) and must not be
+writable by others. Before each start the CLI checks that folder and refuses one
+that is a symlink, belongs to someone else or is writable by others — on ZimaOS 1.8
+`/DATA/AppData` is writable by everyone, and root should never use a folder
+another user can swap.
+
+## Update
+
+```bash
+scp web-ftp-client.raw root@zima-host:/tmp/
+sudo zpkg install --force /tmp/web-ftp-client.raw   # without --force: "module … already installed"
+sudo systemctl restart web-ftp-client.service       # rebuilds and recreates the container
+```
+
+Updating from v0.1.0: that version copied the sources into
+`/DATA/AppData/web-ftp-client/`. They stay there unused; the CLI makes the folder
+non-writable for group and others (it was 775).
 
 ## Verify
 
@@ -51,7 +68,7 @@ curl -sS -o /dev/null -w "%{http_code}\n" http://localhost:8089/
 ## CLI Reference
 
 ```
-web-ftp-client install    # Bootstrap AppData and run compose up -d --build
+web-ftp-client install    # Check the data folder and run compose up -d --build
 web-ftp-client start      # docker compose start
 web-ftp-client stop       # docker compose stop
 web-ftp-client restart    # docker compose restart
@@ -73,9 +90,15 @@ sudo rm -rf /DATA/AppData/web-ftp-client
 
 ## Troubleshooting
 
-**Dashboard tile shows "Service not reachable on port 8089"** — The compose
-stack isn't running. `sudo web-ftp-client install` or
-`sudo systemctl restart web-ftp-client`.
+**Dashboard tile shows "Service did not start in time"** — nothing answered on
+port 8089 for two minutes: the compose stack isn't running.
+`sudo web-ftp-client install` or `sudo systemctl restart web-ftp-client`.
+
+**`Refusing to use /DATA/AppData/web-ftp-client`** — the data folder is a symlink,
+belongs to someone other than root or uid 1000, or is writable by others. The line
+above it names which. Check with `stat /DATA/AppData/web-ftp-client`; a folder you
+created yourself can be handed over with
+`sudo chown 1000:1000 /DATA/AppData/web-ftp-client && sudo chmod 755 /DATA/AppData/web-ftp-client`.
 
 **`mkdir /root/.docker: read-only file system`** — Should not happen via the
 zpkg CLI (it pre-sets `DOCKER_CONFIG=/DATA/.docker`). If you see this, you
