@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { SaveConnectionDialog } from '@/components/dialogs/SaveConnectionDialog';
 import { Logo } from '@/components/brand/Logo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
+import { AccountMenu } from '@/components/auth/AccountMenu';
 import type { Protocol } from '@web-ftp-client/shared';
 
 export function ConnectionBar() {
@@ -208,6 +209,7 @@ export function ConnectionBar() {
       )}
 
       <ThemeToggle />
+      <AccountMenu />
 
       <SaveConnectionDialog
         open={showSaveDialog}

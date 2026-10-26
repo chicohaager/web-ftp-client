@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useTransferStore } from '@/stores/transferStore';
+import { useAuthStore } from '@/stores/authStore';
 import type { WsEvent } from '@web-ftp-client/shared';
 
 export function useWebSocket() {
@@ -25,8 +26,12 @@ export function useWebSocket() {
         } catch { /* ignore parse errors */ }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         wsRef.current = null;
+        if (event.code === 4401) {   // the server closed it: session ended
+          useAuthStore.getState().signedOut();
+          return;
+        }
         if (retriesRef.current < maxRetries) {
           const delay = Math.min(1000 * Math.pow(2, retriesRef.current), 16000);
           retriesRef.current++;

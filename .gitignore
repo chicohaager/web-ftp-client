@@ -20,3 +20,6 @@ packages/data/
 # Maintainer's local working docs — not part of the public repo
 ZIMAOS-KNOWLEDGE.md
 system-status.md
+
+# Python bytecode (tools/e2e-signin.py)
+__pycache__/

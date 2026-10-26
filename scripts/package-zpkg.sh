@@ -16,6 +16,13 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# No image without a full check (scripts/check.sh); SKIP_CHECK=1 only for a local experiment, never for a release.
+if [ "${SKIP_CHECK:-0}" = 1 ]; then
+  echo "WARNING: SKIP_CHECK=1 - building without scripts/check.sh. Do not release this image." >&2
+else
+  bash scripts/check.sh || { echo "scripts/check.sh failed - no image built." >&2; exit 1; }
+fi
+
 NAME="web-ftp-client"
 VERSION="$(node -p "require('./package.json').version")"
 OUT_DIR="${REPO_ROOT}/dist"
@@ -52,6 +59,9 @@ cp "${REPO_ROOT}/icon.svg"        "${RAW_DIR}/usr/share/casaos/www/modules/${NAM
 
 # 4. CLI wrapper + systemd unit
 install -m 755 "${REPO_ROOT}/zpkg/${NAME}-cli.sh" "${RAW_DIR}/usr/bin/${NAME}"
+# Folder check run by the CLI before it touches /DATA/AppData/${NAME} (lintux-modkit appdata-guard.sh,
+# copied into sysext/ — tools/test-appdata-guard.sh compares it with lintux-modkit's)
+install -D -m 0644 "${REPO_ROOT}/sysext/appdata-guard.sh" "${RAW_DIR}/usr/libexec/${NAME}/appdata-guard.sh"
 cp "${REPO_ROOT}/zpkg/${NAME}.service" "${RAW_DIR}/usr/lib/systemd/system/${NAME}.service"
 
 # 5. Compose source bundle (what 'web-ftp-client install' copies to /DATA/AppData/...)
@@ -97,7 +107,7 @@ echo "  Alias:     ${OUTPUT}"
 echo "  Size:      ${SIZE}"
 echo "  Checksum:  ${OUTPUT_VERSIONED}.sha256"
 echo ""
-echo "Deploy:   scp ${OUTPUT_VERSIONED} root@zima-host:/tmp/"
-echo "Install:  sudo zpkg install /tmp/${NAME}-v${VERSION}.raw"
+echo "Deploy:   scp ${OUTPUT} root@zima-host:/tmp/"
+echo "Install:  sudo zpkg install /tmp/${NAME}.raw   (zpkg takes the module name from the file name - keep it unversioned)"
 echo "Start:    sudo systemctl enable --now ${NAME}.service"
 echo "Or CLI:   sudo web-ftp-client install"

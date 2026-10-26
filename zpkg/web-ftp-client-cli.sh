@@ -6,51 +6,101 @@ set -euo pipefail
 APP_NAME="web-ftp-client"
 APP_DIR="/DATA/AppData/${APP_NAME}"
 SRC_DIR="/usr/lib/${APP_NAME}"
-COMPOSE="${APP_DIR}/docker-compose.yml"
+COMPOSE="${SRC_DIR}/docker-compose.yml"
+# uid/gid of the "node" user in node:20-alpine — the container runs as it and writes its database to /app/data
+DATA_UID=1000
+
+GUARD="/usr/libexec/${APP_NAME}/appdata-guard.sh"
 
 export DOCKER_CONFIG="${DOCKER_CONFIG:-/DATA/.docker}"
 
-ensure_installed() {
-  if [ ! -f "${COMPOSE}" ]; then
-    echo "==> Installing ${APP_NAME} to ${APP_DIR}"
-    mkdir -p "${APP_DIR}"
-    cp -a "${SRC_DIR}/." "${APP_DIR}/"
+# Root builds and starts the stack from the read-only module image (SRC_DIR) — never from APP_DIR. APP_DIR is
+# only the container's data volume and belongs to the container user: if root built from it, the container
+# (or anyone in group 1000 over SMB) could change the Dockerfile or the compose file root runs next time.
+# /DATA/AppData is writable by everyone on ZimaOS 1.8 (0777 without the sticky bit), so before dockerd mounts
+# APP_DIR, lintux-modkit's appdata-guard.sh sets the sticky bit on /DATA/AppData and refuses a folder that is
+# a symlink, belongs to someone other than root or the container user, or is writable by others.
+# Up to v0.1.0 the CLI copied the sources into APP_DIR; those copies stay there, unused.
+prepare_data() {
+  local parent
+  parent=$(dirname "${APP_DIR}")
+  # Sticky bit first: from then on only root and the folder's owner can rename or replace APP_DIR, so the
+  # checks and changes below cannot be raced by swapping the folder (appdata-guard.sh sets it too, later).
+  if [ -d "${parent}" ] && [ ! -L "${parent}" ] && [ "$(stat -c %u "${parent}")" = 0 ]; then
+    chmod +t "${parent}"
   fi
+  if [ ! -e "${APP_DIR}" ] && [ ! -L "${APP_DIR}" ]; then
+    mkdir -m 700 "${APP_DIR}"
+    chown -h "${DATA_UID}:${DATA_UID}" "${APP_DIR}"
+  elif [ -d "${APP_DIR}" ] && [ ! -L "${APP_DIR}" ] && [ "$(stat -c %u "${APP_DIR}")" = "${DATA_UID}" ]; then
+    # v0.1.0 installs left it 775; the database in it needs no other reader. The folder's owner can still rename
+    # it despite the sticky bit, so chmod works on the folder we are in, after checking that one's owner: a
+    # symlink swapped in meanwhile can at most lead to another folder of the same owner.
+    ( cd -P -- "${APP_DIR}" && [ "$(stat -c %u .)" = "${DATA_UID}" ] && chmod 700 . )
+  elif [ -d "${APP_DIR}" ] && [ ! -L "${APP_DIR}" ] && [ "$(stat -c %u "${APP_DIR}")" = 0 ]; then
+    # made by root (sudo mkdir, or dockerd creating a missing bind source): the container could not write to it.
+    # Only root can rename a folder of root under the sticky bit; the changes still go to the folder we are in.
+    ( cd -P -- "${APP_DIR}" && [ "$(stat -c %u .)" = 0 ] && chown "${DATA_UID}:${DATA_UID}" . && chmod 700 . )
+  fi
+  if [ -e "${APP_DIR}/.env" ]; then
+    echo "Note: ${APP_DIR}/.env is no longer read (since v0.2.0 the stack runs from ${SRC_DIR}). See INSTALL-ZPKG.md, Update." >&2
+  fi
+  APPDATA_GUARD_UID="${DATA_UID}" APPDATA_GUARD_PATH_UID=0 /bin/sh "${GUARD}" --no-create "${APP_DIR}" \
+    || { echo "Refusing to use ${APP_DIR} (see the message above)." >&2; exit 1; }
+}
+
+compose() {
+  docker compose -f "${COMPOSE}" --project-directory "${SRC_DIR}" "$@"
 }
 
 case "${1:-help}" in
+  install|up|start|restart|reset-account) prepare_data ;;
+esac
+
+case "${1:-help}" in
   install|up)
-    ensure_installed
-    cd "${APP_DIR}"
-    docker compose up -d --build
+    compose up -d --build
     ;;
   start)
-    cd "${APP_DIR}"
-    docker compose start
+    compose start
     ;;
   stop)
-    cd "${APP_DIR}"
-    docker compose stop
+    compose stop
     ;;
   restart)
-    cd "${APP_DIR}"
-    docker compose restart
+    compose restart
     ;;
   down)
-    cd "${APP_DIR}"
-    docker compose down
+    compose down
     ;;
   uninstall)
-    cd "${APP_DIR}"
-    docker compose down -v
+    compose down -v
     echo "Data kept in ${APP_DIR}. Remove manually if desired."
     ;;
   logs)
-    cd "${APP_DIR}"
-    docker compose logs -f --tail=200
+    compose logs -f --tail=200
     ;;
   status)
-    cd "${APP_DIR}" 2>/dev/null && docker compose ps || echo "Not installed. Run: web-ftp-client install"
+    compose ps
+    ;;
+  reset-account)
+    # forgotten password: drop the account inside the container, restart for a new setup code
+    docker exec web-ftp-client node packages/backend/dist/reset-account.js
+    compose restart
+    echo "Now: sudo web-ftp-client setup-code"
+    ;;
+  tls-fingerprint)
+    # SHA-256 of the certificate the app serves right now (asked over TLS on its own port, not read from a file),
+    # to compare with the browser's warning on the first visit
+    docker exec web-ftp-client node -e "const s=require('tls').connect({host:'127.0.0.1',port:+process.env.PORT||3000,rejectUnauthorized:false},()=>{console.log(s.getPeerX509Certificate().fingerprint256);s.end()});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),5000).unref()" 2> /dev/null \
+      | tr -cd 'A-F0-9:\n' | grep . \
+      || { echo "No certificate: the app is not running, or TLS is off (sudo web-ftp-client status)." >&2; exit 1; }
+    ;;
+  setup-code)
+    # read inside the container (as its user), not from APP_DIR on the host
+    # the container writes this file: print only the characters a setup code consists of (no terminal escapes)
+    docker exec web-ftp-client cat /app/data/setup-code 2> /dev/null | tr -cd 'A-Za-z0-9_\n-' | grep . \
+      || { echo "No setup code: the account exists already, or the app is not running (sudo web-ftp-client status)." >&2; exit 1; }
     ;;
   help|*)
     cat <<EOF
@@ -59,7 +109,7 @@ web-ftp-client — ZimaOS control CLI
 Usage: web-ftp-client <command>
 
 Commands:
-  install    Bootstrap /DATA/AppData/${APP_NAME} and run 'docker compose up -d --build'
+  install    Prepare the data folder /DATA/AppData/${APP_NAME} and run 'docker compose up -d --build'
   up         Alias for install
   start      docker compose start
   stop       docker compose stop
@@ -68,6 +118,9 @@ Commands:
   uninstall  docker compose down -v (drops volumes)
   logs       Follow combined container logs
   status     docker compose ps
+  setup-code Print the one-time code that creates the account on the first visit
+  tls-fingerprint  SHA-256 of the HTTPS certificate (compare with the browser's warning)
+  reset-account  Forgot the password: remove the account (saved connections stay)
   help       Show this message
 EOF
     ;;

@@ -1,6 +1,6 @@
 # Stage 1: Build
 FROM node:24-alpine AS builder
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@9.15.9
 
 WORKDIR /app
 
@@ -19,7 +19,9 @@ RUN pnpm --filter=backend build
 
 # Stage 2: Production
 FROM node:24-alpine
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@9.15.9
+# openssl makes the self-signed TLS certificate on the first start (packages/backend/src/services/tls.ts)
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 
