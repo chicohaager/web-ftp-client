@@ -21,7 +21,7 @@ export interface TlsMaterial {
 }
 
 export function tlsEnabled(): boolean {
-  return (process.env.TLS || '').toLowerCase() !== 'off';
+  return !['off', 'false', '0', 'no'].includes((process.env.TLS || '').trim().toLowerCase());
 }
 
 function makeSelfSigned(dir: string): void {
@@ -30,30 +30,63 @@ function makeSelfSigned(dir: string): void {
     .split(',').map((h) => h.trim()).filter((h) => /^[A-Za-z0-9.:-]+$/.test(h))
     .map((h) => (net.isIP(h) ? `IP:${h}` : `DNS:${h}`));
   const san = ['DNS:localhost', 'IP:127.0.0.1', ...extra].join(',');
-  const keyFile = path.join(dir, 'key.pem');
-  const certFile = path.join(dir, 'cert.pem');
+  // written next to the final names and renamed only when both are complete: a start cut off half-way (power
+  // loss) leaves no half-written pair behind that would fail every later start
+  const keyTmp = path.join(dir, 'key.pem.new');
+  const certTmp = path.join(dir, 'cert.pem.new');
+  fs.rmSync(keyTmp, { force: true });
+  fs.rmSync(certTmp, { force: true });
   execFileSync('openssl', [
     'req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes',
-    '-keyout', keyFile, '-out', certFile, '-days', '3650',
+    '-keyout', keyTmp, '-out', certTmp, '-days', '3650',
     '-subj', '/CN=Web FTP Client', '-addext', `subjectAltName=${san}`,
   ], { stdio: ['ignore', 'ignore', 'pipe'] });
-  fs.chmodSync(keyFile, 0o600);
+  fs.chmodSync(keyTmp, 0o600);
+  for (const f of [keyTmp, certTmp]) {
+    const fd = fs.openSync(f, 'r');
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+  }
+  fs.renameSync(keyTmp, path.join(dir, 'key.pem'));
+  fs.renameSync(certTmp, path.join(dir, 'cert.pem'));
+}
+
+// key and certificate parse and belong together; throws with the reason otherwise
+function readPair(keyFile: string, certFile: string): { key: Buffer; cert: Buffer; x509: crypto.X509Certificate } {
+  const key = fs.readFileSync(keyFile);
+  const cert = fs.readFileSync(certFile);
+  const x509 = new crypto.X509Certificate(cert);
+  if (!x509.checkPrivateKey(crypto.createPrivateKey(key))) throw new Error('key does not belong to the certificate');
+  return { key, cert, x509 };
 }
 
 export function loadTls(appData: string): TlsMaterial {
-  let keyFile = process.env.TLS_KEY;
-  let certFile = process.env.TLS_CERT;
-  const selfSigned = !(keyFile && certFile);
-  if (selfSigned) {
-    const dir = path.join(appData, 'tls');
-    keyFile = path.join(dir, 'key.pem');
-    certFile = path.join(dir, 'cert.pem');
-    if (!fs.existsSync(keyFile) || !fs.existsSync(certFile)) makeSelfSigned(dir);
+  const ownKey = process.env.TLS_KEY;
+  const ownCert = process.env.TLS_CERT;
+  if (ownKey || ownCert) {
+    // an own certificate never falls back to the self-signed one: that would serve a certificate nobody expects
+    if (!ownKey || !ownCert) throw new Error(`TLS_CERT and TLS_KEY must be set together (set: ${ownCert ? 'TLS_CERT' : 'TLS_KEY'})`);
+    try {
+      const { key, cert, x509 } = readPair(ownKey, ownCert);
+      return { key, cert, fingerprint: x509.fingerprint256, selfSigned: false };
+    } catch (err) {
+      throw new Error(`TLS_CERT ${ownCert} / TLS_KEY ${ownKey} unusable: ${(err as Error).message}`);
+    }
   }
-  const key = fs.readFileSync(keyFile!);
-  const cert = fs.readFileSync(certFile!);
-  const fingerprint = new crypto.X509Certificate(cert).fingerprint256;
-  return { key, cert, fingerprint, selfSigned };
+  const dir = path.join(appData, 'tls');
+  const keyFile = path.join(dir, 'key.pem');
+  const certFile = path.join(dir, 'cert.pem');
+  if (!fs.existsSync(keyFile) || !fs.existsSync(certFile)) makeSelfSigned(dir);
+  let pair;
+  try {
+    pair = readPair(keyFile, certFile);
+  } catch (err) {
+    // the app made this pair itself, so a broken one (empty, cut off, mismatched) is replaced, not a restart loop
+    console.log(`[TLS] ${dir} unusable (${(err as Error).message}): making a new self-signed certificate`);
+    makeSelfSigned(dir);
+    pair = readPair(keyFile, certFile);
+  }
+  return { key: pair.key, cert: pair.cert, fingerprint: pair.x509.fingerprint256, selfSigned: true };
 }
 
 /**
@@ -61,9 +94,14 @@ export function loadTls(appData: string): TlsMaterial {
  * goes to `plain`, which only answers /healthz and redirects everything else to HTTPS — a request in clear is never
  * handled, so a password can't be accepted unencrypted.
  */
+export const FIRST_BYTE_MS = Number(process.env.TLS_FIRST_BYTE_MS) || 10_000;
+
 export function listenMixed(port: number, httpsServer: net.Server, plain: http.Server, ready: () => void): net.Server {
   const mux = net.createServer((socket) => {
+    // until the first byte no server's own timeouts apply: a connection that never sends would stay open
+    socket.setTimeout(FIRST_BYTE_MS, () => socket.destroy());
     socket.once('data', (first) => {
+      socket.setTimeout(0);
       socket.pause();
       socket.unshift(first);
       (first[0] === 0x16 ? httpsServer : plain).emit('connection', socket);
@@ -75,8 +113,22 @@ export function listenMixed(port: number, httpsServer: net.Server, plain: http.S
   return mux;
 }
 
+// path + query of a request URL, also for the absolute form ("GET http://host/x HTTP/1.1")
+function pathOf(url: string | undefined): string {
+  if (!url) return '/';
+  if (url.startsWith('/')) return url;
+  try {
+    const u = new URL(url);
+    return u.pathname + u.search;
+  } catch {
+    return '/';
+  }
+}
+
 export function plainHandler(req: http.IncomingMessage, res: http.ServerResponse): void {
-  if (req.url === '/healthz') {
+  const target = pathOf(req.url);
+  // the ZimaOS tile asks /healthz?_ping=<time> (cache buster): the query must not turn it into a redirect
+  if (target.split('?')[0] === '/healthz') {
     res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' });
     res.end('ok');
     return;
@@ -87,6 +139,6 @@ export function plainHandler(req: http.IncomingMessage, res: http.ServerResponse
     res.end();
     return;
   }
-  res.writeHead(308, { Location: `https://${host}${req.url && req.url.startsWith('/') ? req.url : '/'}`, 'Cache-Control': 'no-store' });
+  res.writeHead(308, { Location: `https://${host}${target}`, 'Cache-Control': 'no-store' });
   res.end();
 }

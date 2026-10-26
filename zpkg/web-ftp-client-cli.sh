@@ -90,8 +90,9 @@ case "${1:-help}" in
     echo "Now: sudo web-ftp-client setup-code"
     ;;
   tls-fingerprint)
-    # SHA-256 of the app's certificate, to compare with the browser's warning on the first visit
-    docker exec web-ftp-client node -e "const c=require('crypto'),f=require('fs');console.log(new c.X509Certificate(f.readFileSync(process.env.TLS_CERT||'/app/data/tls/cert.pem')).fingerprint256)" 2> /dev/null \
+    # SHA-256 of the certificate the app serves right now (asked over TLS on its own port, not read from a file),
+    # to compare with the browser's warning on the first visit
+    docker exec web-ftp-client node -e "const s=require('tls').connect({host:'127.0.0.1',port:+process.env.PORT||3000,rejectUnauthorized:false},()=>{console.log(s.getPeerX509Certificate().fingerprint256);s.end()});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),5000).unref()" 2> /dev/null \
       | tr -cd 'A-F0-9:\n' | grep . \
       || { echo "No certificate: the app is not running, or TLS is off (sudo web-ftp-client status)." >&2; exit 1; }
     ;;
