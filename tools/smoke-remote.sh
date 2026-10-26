@@ -26,8 +26,8 @@ trap cleanup EXIT
 
 docker run -d --name "$FTP" -p 127.0.0.1:2121:21 -p 127.0.0.1:21000-21010:21000-21010 \
   -e USERS="smoke|smoke-pass-1|/srv/ftp" -e ADDRESS=127.0.0.1 -e MIN_PORT=21000 -e MAX_PORT=21010 \
-  delfer/alpine-ftp-server:latest > /dev/null || { echo "FTP server did not start"; exit 2; }
-docker run -d --name "$SFTP" -p 127.0.0.1:2222:22 atmoz/sftp:alpine "smoke:smoke-pass-1:::upload" > /dev/null \
+  delfer/alpine-ftp-server@sha256:60bb774d8408d9d4d5c74d05d1c086a34ce192c6c1a142ffac268cac0dbc6fac > /dev/null || { echo "FTP server did not start"; exit 2; }
+docker run -d --name "$SFTP" -p 127.0.0.1:2222:22 atmoz/sftp@sha256:43dd1c023cf1bae487127d4b54660b0aee6e94c188a6599be36fb89ba115f961 "smoke:smoke-pass-1:::upload" > /dev/null \
   || { echo "SFTP server did not start"; exit 2; }
 
 mkdir -p "$T/data/up" "$T/data/down" "$T/app"
@@ -72,7 +72,8 @@ for proto in ftp sftp; do
   r=$(api POST /remote/connect "{\"host\":\"127.0.0.1\",\"port\":$port,\"protocol\":\"$proto\",\"username\":\"smoke\",\"password\":\"smoke-pass-1\"}")
   sid=$(echo "$r" | field "d['data']['sessionId'] if d.get('ok') else ''" 2> /dev/null)
   if [ -n "$sid" ]; then ok "$proto: connect"; else bad "$proto: connect: $r"; continue; fi
-  api POST /remote/upload "{\"localPath\":\"/up\",\"remotePath\":\"$rdir\",\"files\":[\"smoke.bin\"]}" "$sid" > /dev/null
+  up=$(api POST /remote/upload "{\"localPath\":\"/up\",\"remotePath\":\"$rdir\",\"files\":[\"smoke.bin\"]}" "$sid" | field "d['data'][0]['id'] if d.get('ok') and d.get('data') else ''")
+  [ -n "$up" ] || bad "$proto: upload request refused"
   st=$(wait_done "$sid" smoke.bin upload)
   [ "$st" = completed ] && ok "$proto: upload" || bad "$proto: upload ended '$st'"
   size=$(api GET "/remote/list?path=$rdir" "" "$sid" | field "[f['size'] for f in d['data']['files'] if f['name']=='smoke.bin']")
@@ -89,9 +90,13 @@ for proto in ftp sftp; do
 done
 c=$(grep -c . "$T/ws.log" 2> /dev/null || echo 0)
 if [ "$c" -gt 0 ] && ! grep -q '^ERROR' "$T/ws.log"; then ok "/ws pushed $c transfer messages"; else bad "/ws: $(head -3 "$T/ws.log" 2> /dev/null)"; fi
-kill -TERM "$BPID"
-for _ in $(seq 1 15); do kill -0 "$BPID" 2> /dev/null || break; sleep 0.2; done
-if kill -0 "$BPID" 2> /dev/null; then bad "backend still runs 3 s after SIGTERM"; kill -9 "$BPID"; else ok "backend exits on SIGTERM"; fi
+if ! kill -0 "$BPID" 2> /dev/null; then bad "backend died before the SIGTERM check"
+else
+  kill -TERM "$BPID"
+  for _ in $(seq 1 15); do kill -0 "$BPID" 2> /dev/null || break; sleep 0.2; done
+  if kill -0 "$BPID" 2> /dev/null; then bad "backend still runs 3 s after SIGTERM"; kill -9 "$BPID"
+  else wait "$BPID"; rc=$?; [ "$rc" = 0 ] && ok "backend exits on SIGTERM (rc 0)" || bad "backend exited with rc $rc on SIGTERM"; fi
+fi
 BPID=
 [ "$F" = 0 ] && echo "✓ remote smoke: all checks passed" || { echo "✗ remote smoke: $F failed"; tail -20 "$T/backend.log"; }
 exit "$F"

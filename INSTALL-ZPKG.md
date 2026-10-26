@@ -48,8 +48,12 @@ sudo systemctl restart web-ftp-client.service       # rebuilds and recreates the
 ```
 
 Updating from v0.1.0: that version copied the sources into
-`/DATA/AppData/web-ftp-client/`. They stay there unused; the CLI makes the folder
-non-writable for group and others (it was 775).
+`/DATA/AppData/web-ftp-client/` and ran compose there. They stay there unused; the
+CLI makes the folder 700 (it was 775). A `.env` file in that folder is no longer
+read either — the CLI notes it in the journal. If you had set `ENCRYPTION_KEY` in
+it, saved connection passwords can no longer be decrypted after the update: enter
+them again in the bookmarks. `WEBUI_PORT` from that file no longer applies; the app
+listens on 8089.
 
 ## Verify
 
