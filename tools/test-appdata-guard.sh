@@ -28,7 +28,7 @@ if grep -q 'APPDATA_GUARD_UID="${DATA_UID}" APPDATA_GUARD_PATH_UID=0 /bin/sh "${
 if grep -q 'sysext/appdata-guard.sh" "${RAW_DIR}/usr/libexec/${NAME}/appdata-guard.sh"' scripts/package-zpkg.sh; then ok "package-zpkg.sh puts the guard into the image"; else bad "package-zpkg.sh does not install sysext/appdata-guard.sh"; fi
 if grep -q '^GUARD="/usr/libexec/${APP_NAME}/appdata-guard.sh"$' "$C"; then ok "CLI looks for it in /usr/libexec/web-ftp-client"; else bad "CLI GUARD path"; fi
 # 3 the copy is lintux-modkit's
-M=../lintux-modkit/sysext/appdata-guard.sh
+M="${LINTUX_MODKIT:-../lintux-modkit}/sysext/appdata-guard.sh"   # the checkout the fix is in, e.g. a worktree
 if [ ! -f sysext/appdata-guard.sh ]; then bad "sysext/appdata-guard.sh missing"
 elif [ ! -f "$M" ]; then ok "guard copy present (lintux-modkit not next to the repo, not compared)"
 elif cmp -s "$M" sysext/appdata-guard.sh; then ok "sysext/appdata-guard.sh is lintux-modkit's"
