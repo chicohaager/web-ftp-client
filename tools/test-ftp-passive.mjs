@@ -1,5 +1,5 @@
 // Passive mode against a server behind NAT: a tiny FTP server that refuses EPSV and answers PASV with an address
-// the client cannot reach (10.0.0.89) while it listens for the data connection on 127.0.0.1. The backend's
+// the client cannot reach (10.0.0.60) while it listens for the data connection on 127.0.0.1. The backend's
 // FtpService must still list the folder (it connects to the control host); basic-ftp's default client must fail
 // on the same server — otherwise this test would not reach the PASV path at all.
 //   pnpm --filter=backend build && node tools/test-ftp-passive.mjs      exit 0 = all passed
@@ -67,7 +67,7 @@ try {
   await plain.list('/');
   bad('basic-ftp default client listed the folder — the test does not reach the PASV address check');
 } catch (err) {
-  if (/PASV returned another host/.test(err.message)) ok('basic-ftp default client refuses the PASV address (10.0.0.89)');
+  if (/PASV returned another host/.test(err.message)) ok('basic-ftp default client refuses the PASV address (10.0.0.60)');
   else bad(`default client failed differently: ${err.message}`);
 }
 plain.close();
@@ -79,7 +79,7 @@ try {
   await svc.connect(config);
   const files = await svc.list('/');
   const names = files.map((f) => f.name);
-  if (names.includes('hello.txt')) ok('FtpService lists over PASV with the control host (10.0.0.89 ignored)');
+  if (names.includes('hello.txt')) ok('FtpService lists over PASV with the control host (10.0.0.60 ignored)');
   else bad(`FtpService listed ${JSON.stringify(names)}`);
   if (commands.includes('EPSV') && commands.includes('PASV')) ok('EPSV tried first, PASV after its refusal');
   else bad(`commands: ${commands.join(' ')}`);
